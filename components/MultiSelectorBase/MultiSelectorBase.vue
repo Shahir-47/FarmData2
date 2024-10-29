@@ -44,6 +44,7 @@ import SelectorBase from '@comps/SelectorBase/SelectorBase.vue';
     v-bind:selected="form.selected"
     v-bind:options="options"
     v-bind:popupUrl="popupUrl"
+    b-bind:noRepeat="noRepeat"
     v-on:valid="
       (valid) => {
         validity.selected = valid;
