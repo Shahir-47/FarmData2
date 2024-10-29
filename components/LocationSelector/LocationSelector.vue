@@ -296,6 +296,19 @@ export default {
     },
   },
   methods: {
+    setPopupUrl() {
+      if (
+        (this.includeGreenhouses || this.includeGreenhousesWithBeds) &&
+        !this.includeFields &&
+        this.canCreateStructure
+      ) {
+        this.popupUrl = '/asset/add/structure';
+      } else if (this.includeFields && this.canCreateLand) {
+        this.popupUrl = '/asset/add/land';
+      } else {
+        this.popupUrl = null;
+      }
+    },
     handleUpdateBeds(event) {
       this.checkedBeds = event;
 
@@ -386,6 +399,9 @@ export default {
     },
   },
   watch: {
+    includeFields: 'setPopupUrl',
+    includeGreenhouses: 'setPopupUrl',
+    includeGreenhousesWithBeds: 'setPopupUrl',
     selectedBeds() {
       this.checkedBeds = this.selectedBeds;
     },
@@ -433,21 +449,7 @@ export default {
         this.bedObjs = beds;
         this.canCreateLand = createLand;
         this.canCreateStructure = createStructure;
-        if (
-          this.includeFields &&
-          (this.includeGreenhouses || this.includeGreenhousesWithBeds) &&
-          this.canCreateLand &&
-          this.canCreateStructure
-        ) {
-          this.popupUrl = '/asset/add';
-        } else if (this.includeFields && this.canCreateLand) {
-          this.popupUrl = '/asset/add/land';
-        } else if (
-          (this.includeGreenhouses || this.includeGreenhousesWithBeds) &&
-          this.canCreateStructure
-        ) {
-          this.popupUrl = '/asset/add/structure';
-        }
+        this.setPopupUrl();
 
         /**
          * The select has been populated with the list of locations and the component is ready to be used.
