@@ -15,6 +15,7 @@
     v-bind:selected="form.selected"
     v-bind:options="options"
     v-bind:popupUrl="popupUrl"
+    v-bind:noRepeat="noRepeat"
     v-on:valid="
       (valid) => {
         validity.selected = valid;
@@ -53,6 +54,17 @@
             data-cy="styling-checkbox"
             switch
             v-model="validity.showStyling"
+          />
+        </td>
+      </tr>
+      <tr>
+        <td>noRepeat</td>
+        <td>
+          <BFormCheckbox
+            id="no-repeat-checkbox"
+            data-cy="no-repeat-checkbox"
+            switch
+            v-model="noRepeat"
           />
         </td>
       </tr>
@@ -158,6 +170,7 @@ export default {
   data() {
     return {
       required: true,
+      noRepeat: false,
       form: {
         selected: [],
       },
