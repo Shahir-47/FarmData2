@@ -82,13 +82,11 @@
           <PicklistBase
             id="termination-event-picklist"
             data-cy="termination-event-picklist"
-            v-bind:required="true"
-            invalidFeedbackText="At least one plant must be selected for termination."
             v-bind:showValidityStyling="validity.show"
             v-bind:columns="picklistColumns"
             v-bind:labels="picklistLabels"
             v-bind:rows="form.affectedPlants"
-            v-bind:showInfoIcons="true"
+            v-bind:showInfoIcons="false"
             v-bind:picked="form.picked"
             v-on:valid="(valid) => (validity.picked = valid)"
             v-on:update:picked="form.picked = $event"
@@ -220,8 +218,6 @@ export default {
         crop: 'Crop',
         bed: 'Bed',
         timestamp: 'Planted Date',
-        uuid: 'UUID',
-        created_by: 'Created By',
       },
     };
   },
@@ -254,7 +250,6 @@ export default {
             false,
             true
           );
-          console.log(results);
           // Map results to rows for PicklistBase
           this.form.affectedPlants = results.flatMap((plant) =>
             plant.beds.length > 0
@@ -288,8 +283,6 @@ export default {
             this.picklistLabels = {
               crop: 'Crop',
               timestamp: 'Planted Date',
-              uuid: 'UUID',
-              created_by: 'Created By',
             };
           } else {
             this.picklistColumns = ['crop', 'bed', 'timestamp'];
@@ -297,8 +290,6 @@ export default {
               crop: 'Crop',
               bed: 'Bed',
               timestamp: 'Planted Date',
-              uuid: 'UUID',
-              created_by: 'Created By',
             };
           }
         } catch (error) {
