@@ -7,7 +7,7 @@
       v-bind:data-cy="'selector-' + (i + 1)"
       v-bind:invalidFeedbackText="invalidFeedbackText"
       v-bind:label="String(i + 1)"
-      v-bind:options="options"
+      v-bind:options="getFilteredOptions(i)"
       v-bind:required="isRequired(i)"
       v-bind:selected="selected[i]"
       v-bind:showValidityStyling="showValidityStyling"
@@ -116,6 +116,13 @@ export default {
       type: String,
       default: null,
     },
+    /**
+     * Whether duplicate selections are allowed.
+     */
+    noRepeat: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
@@ -135,6 +142,17 @@ export default {
     },
     isRequired(i) {
       return this.required && i === 0 && this.selectedItems.length < 2;
+    },
+    getFilteredOptions(index) {
+      // Filter options if noRepeat is true
+      if (this.noRepeat) {
+        return this.options.filter(
+          (item) =>
+            !this.selectedItems.includes(item) ||
+            this.selectedItems[index] === item
+        );
+      }
+      return this.options;
     },
     handleAddClicked(event) {
       /**

@@ -8,6 +8,7 @@
       v-bind:showValidityStyling="showValidityStyling"
       v-bind:options="equipmentList"
       v-bind:selected="selected"
+      v-bind:noRepeat="true"
       v-on:update:selected="handleUpdateSelected()"
       v-on:add-clicked="handleAddClicked($event)"
       v-on:valid="handleValid($event)"
