@@ -127,11 +127,11 @@ export default {
      *
      * For example:
      * - If `includeGreenhouses` is `true` and `includeGreenhousesWithBeds` is `false`,
-     *   all greenhouses will be included.
+     *   all greenhouses, (both with and without beds), will be included.
      * - If both `includeGreenhouses` and `includeGreenhousesWithBeds` are `true`,
      *   all greenhouses (both with and without beds) will be included.
      * - If `includeGreenhouses` is `false` and `includeGreenhousesWithBeds` is `true`,
-     *   only greenhouses that have beds will be included.
+     *   only greenhouses with beds will be included.
      */
     includeGreenhousesWithBeds: {
       type: Boolean,
