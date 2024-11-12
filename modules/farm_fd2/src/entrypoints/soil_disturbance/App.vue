@@ -62,26 +62,39 @@
         />
 
         <!-- Termination Event -->
-        <BFormGroup
+        <div
           id="termination-event-group"
           data-cy="termination-event-group"
-          label-for="termination-event-picklist"
-          label-cols="auto"
-          label-align="end"
           v-if="plantsAtLocation"
+          class="d-flex flex-column align-items-center"
         >
-          <template v-slot:label>
-            <span
-              id="termination-event-label"
-              data-cy="termination-event-label"
-              class="p-0"
-              >Termination Event:</span
-            >
-          </template>
+          <BFormGroup
+            id="termination-event-group-checkbox"
+            data-cy="termination-event-group-checkbox"
+            class="w-100"
+            label-for="termination-event-checkbox"
+            label-cols="auto"
+            label-align="end"
+          >
+            <template v-slot:label>
+              <span
+                id="termination-event-label"
+                data-cy="termination-event-label"
+                >Termination Event:</span
+              >
+            </template>
 
+            <BFormCheckbox
+              id="termination-event-checkbox"
+              data-cy="termination-event-checkbox"
+              v-model="form.termination"
+              size="lg"
+            />
+          </BFormGroup>
           <PicklistBase
             id="termination-event-picklist"
             data-cy="termination-event-picklist"
+            class="w-100"
             v-bind:showValidityStyling="validity.show"
             v-bind:columns="picklistColumns"
             v-bind:labels="picklistLabels"
@@ -92,7 +105,7 @@
             v-on:update:picked="form.picked = $event"
             v-on:ready="createdCount++"
           />
-        </BFormGroup>
+        </div>
         <hr />
 
         <!-- Equipment -->
@@ -455,5 +468,15 @@ export default {
   padding-top: 2px;
   font-size: 1.15rem;
   font-weight: 350;
+}
+
+#termination-event-group-checkbox {
+  align-items: center;
+  padding: 0.25rem;
+  background-color: #fff;
+}
+
+#termination-event-group {
+  border: 1px solid rgb(222, 226, 230);
 }
 </style>
