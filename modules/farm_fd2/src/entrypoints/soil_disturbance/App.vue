@@ -65,8 +65,8 @@
         <div
           id="termination-event-group"
           data-cy="termination-event-group"
-          v-if="plantsAtLocation"
           class="d-flex flex-column align-items-center"
+          v-if="plantsAtLocation"
         >
           <BFormGroup
             id="termination-event-group-checkbox"
@@ -206,6 +206,7 @@ export default {
         date: dayjs().format('YYYY-MM-DD'),
         location: null,
         beds: [],
+        termination: false,
         picked: new Map(),
         affectedPlants: [],
         equipment: [],
@@ -382,6 +383,7 @@ export default {
 
       if (!sticky) {
         this.form.date = dayjs().format('YYYY-MM-DD');
+        this.form.termination = false;
         this.form.picked = new Map();
         this.form.equipment = [];
         this.form.depth = 0;
