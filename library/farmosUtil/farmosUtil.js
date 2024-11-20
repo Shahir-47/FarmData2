@@ -2384,6 +2384,127 @@ export async function getTraySeededCropNames() {
 }
 
 /**
+ * Create a new activity log (`log--activity`) for a soil disturbance termination.
+ *
+ * Terminates specific beds or an entire plant asset at a location. If beds are provided, they
+ * are removed from the plant asset. If all beds are terminated, or no beds are provided,
+ * the plant asset is archived.
+ *
+ * @param {string} terminationDate the date of the soil disturbance.
+ * @param {string} locationName the location of the plant asset (e.g., field or greenhouse).
+ * @param {Array<string>} bedNames the names of the beds to terminate. If empty, the plant asset is archived.
+ * @param {Object} plantAsset the plant asset affected by the termination.
+ * @returns {Object} the created activity log or the result of archiving the plant asset.
+ *
+ * @category termination
+ */
+export async function createSoilDisturbanceTerminationLog(
+  terminationDate,
+  locationName,
+  bedNames = [],
+  plantAsset
+) {
+  const farm = await getFarmOSInstance();
+  const allBedsMap = await getBeds();
+
+  const bedNameToAssetMap = await getBedNameToAssetMap();
+  const bedIdsToTerminate = bedNames.map(
+    (name) => bedNameToAssetMap.get(name)?.id
+  );
+
+  console.log(plantAsset);
+
+  // Determine beds to keep and beds to terminate
+  const existingBeds = plantAsset.relationships.location.slice(1) || [];
+  const bedsToKeep = existingBeds
+    .filter((bed) => !bedIdsToTerminate.includes(bed.id)) // Exclude terminated beds
+    .map(
+      (bed) =>
+        allBedsMap.find((allBed) => allBed.id === bed.id)?.attributes.name
+    )
+    .filter((name) => name);
+
+  console.log(existingBeds);
+
+  // Create a termination log for the specified beds
+  const locationsArray = await getPlantingLocationObjects([
+    locationName,
+    ...bedsToKeep,
+  ]);
+  const logCategoriesArray = await getLogCategoryObjects(['termination']);
+
+  const logName = `${dayjs(terminationDate).format(
+    'YYYY-MM-DD'
+  )}_soil_disturbance_termination_${plantAsset.id}`;
+
+  const terminationLogData = {
+    type: 'log--activity',
+    attributes: {
+      name: logName,
+      timestamp: dayjs(terminationDate).format(),
+      status: 'done',
+      is_movement: true,
+    },
+    relationships: {
+      location: locationsArray,
+      asset: [{ type: 'asset--plant', id: plantAsset.id }],
+      category: logCategoriesArray,
+    },
+  };
+
+  const createdLog = await farm.log.send(farm.log.create(terminationLogData));
+
+  if (bedsToKeep.length === 0) {
+    return await archivePlantAsset(plantAsset.id, true);
+  } else {
+    return createdLog;
+  }
+}
+
+/**
+ * Get the soil disturbance termination activity log with the specified id.
+ *
+ * @param {string} activityLogId the id of the soil disturbance termination activity log to get.
+ * @returns the soil disturbance termination activity log with the specified id.
+ *
+ * @category termination
+ */
+export async function getSoilDisturbanceTerminationLog(activityLogId) {
+  const farm = await getFarmOSInstance();
+
+  const results = await farm.log.fetch({
+    filter: { type: 'log--activity', id: activityLogId },
+  });
+
+  console.log(results);
+  return results.data[0];
+}
+
+/**
+ * Delete the soil disturbance termination activity log with the specified id.
+ *
+ * @param {string} activityLogId the id of the soil disturbance termination activity log.
+ * @returns {Object} the response from the server.
+ * @throws {Error} if unable to delete the soil disturbance termination activity log.
+ *
+ * @category termination
+ */
+export async function deleteSoilDisturbanceTerminationLog(activityLogId) {
+  const farm = await getFarmOSInstance();
+
+  try {
+    const result = await farm.log.delete('activity', activityLogId);
+    return result;
+  } catch (error) {
+    console.error('deleteSoilDisturbanceTerminationLog:');
+    console.error('  Unable to delete activity log with id: ' + activityLogId);
+    console.error(error.message);
+    console.error(error);
+    throw error;
+  }
+}
+
+/**
  * Create a new activity log (`log--activity`) for a winter kill.
  *
  * @param {string} winterKillDate the date the crop will be winter killed.
