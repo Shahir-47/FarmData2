@@ -51,6 +51,7 @@
           includeGreenhousesWithBeds
           v-model:selected="form.location"
           v-bind:pickedBeds="form.beds"
+          v-bind:allowBedSelection="allowBedSelection"
           v-bind:showValidityStyling="validity.show"
           v-on:valid="validity.location = $event"
           v-on:update:beds="
@@ -238,6 +239,9 @@ export default {
   computed: {
     plantsAtLocation() {
       return this.form.affectedPlants.length > 0;
+    },
+    allowBedSelection() {
+      return this.form.affectedPlants.length === 0;
     },
     pageDoneLoading() {
       return this.createdCount === 6;
