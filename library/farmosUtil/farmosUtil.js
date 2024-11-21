@@ -2384,17 +2384,23 @@ export async function getTraySeededCropNames() {
 }
 
 /**
- * Create a new activity log (`log--activity`) for a soil disturbance termination.
+ * Creates an activity log (`log--activity`) for a soil disturbance termination event.
  *
- * Terminates specific beds or an entire plant asset at a location. If beds are provided, they
- * are removed from the plant asset. If all beds are terminated, or no beds are provided,
- * the plant asset is archived.
+ * This function performs two key actions:
+ * 1. Terminates specific beds associated with a plant asset at a given location.
+ * 2. Archives the plant asset **if no beds remain after the termination process**.
  *
- * @param {string} terminationDate the date of the soil disturbance.
- * @param {string} locationName the location of the plant asset (e.g., field or greenhouse).
- * @param {Array<string>} bedNames the names of the beds to terminate. If empty, the plant asset is archived.
- * @param {Object} plantAsset the plant asset affected by the termination.
- * @returns {Object} the created activity log or the result of archiving the plant asset.
+ * **Workflow:**
+ * - Processes the list of beds to terminate, removing them from the plant asset.
+ * - Calculates remaining beds for the plant asset.
+ * - Creates a soil disturbance termination log to reflect the update.
+ * - Archives the plant asset if all associated beds are terminated (i.e., no beds remain).
+ *
+ * @param {string} terminationDate - The date of the soil disturbance (e.g., "2023-11-20").
+ * @param {string} locationName - The location of the plant asset (e.g., a field or greenhouse).
+ * @param {Array<string>} bedNames - The names of the beds to terminate. If all beds are terminated, the plant asset is archived.
+ * @param {Object} plantAsset - The plant asset to be affected by the termination and potential archiving.
+ * @returns {Object} The created activity log archiving the plant asset.
  *
  * @category termination
  */
@@ -2412,8 +2418,6 @@ export async function createSoilDisturbanceTerminationLog(
     (name) => bedNameToAssetMap.get(name)?.id
   );
 
-  console.log(plantAsset);
-
   // Determine beds to keep and beds to terminate
   const existingBeds = plantAsset.relationships.location.slice(1) || [];
   const bedsToKeep = existingBeds
@@ -2424,9 +2428,7 @@ export async function createSoilDisturbanceTerminationLog(
     )
     .filter((name) => name);
 
-  console.log(existingBeds);
-
-  // Create a termination log for the specified beds
+  // Create a termination log
   const locationsArray = await getPlantingLocationObjects([
     locationName,
     ...bedsToKeep,
@@ -2455,10 +2457,10 @@ export async function createSoilDisturbanceTerminationLog(
   const createdLog = await farm.log.send(farm.log.create(terminationLogData));
 
   if (bedsToKeep.length === 0) {
-    return await archivePlantAsset(plantAsset.id, true);
-  } else {
-    return createdLog;
+    await archivePlantAsset(plantAsset.id, true);
   }
+
+  return createdLog;
 }
 
 /**
@@ -2476,7 +2478,6 @@ export async function getSoilDisturbanceTerminationLog(activityLogId) {
     filter: { type: 'log--activity', id: activityLogId },
   });
 
-  console.log(results);
   return results.data[0];
 }
 
