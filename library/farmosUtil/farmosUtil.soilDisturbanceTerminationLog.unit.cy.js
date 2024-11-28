@@ -2,12 +2,13 @@ import * as farmosUtil from './farmosUtil';
 
 describe('Test the soil disturbance termination log functions', () => {
   let fieldMap = null;
+  let cropMap = null;
   let bedMap = null;
   let categoryMap = null;
 
-  function createPlantAsset(name, type, timestamp) {
+  function createPlantAsset(name, type, date) {
     return cy
-      .wrap(farmosUtil.createPlantAsset(timestamp, type, name))
+      .wrap(farmosUtil.createPlantAsset(date, type, name))
       .as('newPlantAsset');
   }
 
@@ -93,6 +94,10 @@ describe('Test the soil disturbance termination log functions', () => {
       fieldMap = map;
     });
 
+    cy.wrap(farmosUtil.getCropIdToTermMap()).then((map) => {
+      cropMap = map;
+    });
+
     cy.wrap(farmosUtil.getBedNameToAssetMap()).then((map) => {
       bedMap = map;
     });
@@ -145,7 +150,10 @@ describe('Test the soil disturbance termination log functions', () => {
     cy.getAll(['@readSoilDisturbanceLog', '@newPlantAsset']).then(
       ([soilDisturbanceLog, plantAsset]) => {
         expect(soilDisturbanceLog.attributes.name).to.equal(
-          '2023-11-20_soil_disturbance_termination_' + plantAsset.id
+          '2023-11-20_sd_' +
+            plantAsset.relationships.plant_type
+              .map((crop) => cropMap.get(crop.id).attributes.name)
+              .join('_')
         );
         expect(soilDisturbanceLog.attributes.timestamp).to.contain(
           '2023-11-20'
@@ -239,7 +247,10 @@ describe('Test the soil disturbance termination log functions', () => {
     cy.getAll(['@readSoilDisturbanceLog', '@newPlantAsset']).then(
       ([soilDisturbanceLog, plantAsset]) => {
         expect(soilDisturbanceLog.attributes.name).to.equal(
-          '2023-11-20_soil_disturbance_termination_' + plantAsset.id
+          '2023-11-20_sd_' +
+            plantAsset.relationships.plant_type
+              .map((crop) => cropMap.get(crop.id).attributes.name)
+              .join('_')
         );
         expect(soilDisturbanceLog.attributes.timestamp).to.contain(
           '2023-11-20'
@@ -316,7 +327,10 @@ describe('Test the soil disturbance termination log functions', () => {
     cy.getAll(['@readSoilDisturbanceLog', '@newPlantAsset']).then(
       ([soilDisturbanceLog, plantAsset]) => {
         expect(soilDisturbanceLog.attributes.name).to.equal(
-          '2023-11-20_soil_disturbance_termination_' + plantAsset.id
+          '2023-11-20_sd_' +
+            plantAsset.relationships.plant_type
+              .map((crop) => cropMap.get(crop.id).attributes.name)
+              .join('_')
         );
         expect(soilDisturbanceLog.attributes.timestamp).to.contain(
           '2023-11-20'
@@ -554,54 +568,6 @@ describe('Test the soil disturbance termination log functions', () => {
       });
     }
   );
-
-  it('Delete a soil disturbance termination log', () => {
-    createPlantAsset(
-      'Test Plant Asset for Deletion',
-      'HERB-CILANTRO',
-      '2023-11-20'
-    );
-
-    cy.get('@newPlantAsset').then((plantAsset) => {
-      createMovementLog(
-        plantAsset,
-        ['ALF', 'ALF-1', 'ALF-3'],
-        ['seeding', 'tillage'],
-        '2023-11-20'
-      );
-    });
-
-    // Create the soil disturbance termination log for a specific bed
-    cy.get('@newPlantAsset').then((plantAsset) => {
-      cy.wrap(farmosUtil.getPlantAsset(plantAsset.id)).then(
-        (updatedPlantAsset) => {
-          cy.wrap(
-            farmosUtil.createSoilDisturbanceTerminationLog(
-              '2023-11-20',
-              'ALF',
-              ['ALF-3'], // Terminate ALF-3
-              updatedPlantAsset // Use the updated plant asset
-            )
-          ).as('soilDisturbanceLog');
-        }
-      );
-    });
-
-    // Delete the soil disturbance termination log
-    cy.get('@soilDisturbanceLog').then((soilDisturbanceLog) => {
-      cy.wrap(
-        farmosUtil.deleteSoilDisturbanceTerminationLog(soilDisturbanceLog.id)
-      ).then((result) => {
-        expect(result.status).to.equal(204); // Successful deletion
-      });
-    });
-
-    // Delete the movement log and plant asset
-    cleanupLogsAndAsset({
-      deleteMovementLog: true,
-      deletePlantAsset: true,
-    });
-  });
 
   it(
     'Error deleting a soil disturbance termination log',

@@ -2412,6 +2412,7 @@ export async function createSoilDisturbanceTerminationLog(
 ) {
   const farm = await getFarmOSInstance();
   const allBedsMap = await getBeds();
+  const cropIdToTermMap = await getCropIdToTermMap(); // for log name
 
   const bedNameToAssetMap = await getBedNameToAssetMap();
   const bedIdsToTerminate = bedNames.map(
@@ -2437,7 +2438,9 @@ export async function createSoilDisturbanceTerminationLog(
 
   const logName = `${dayjs(terminationDate).format(
     'YYYY-MM-DD'
-  )}_soil_disturbance_termination_${plantAsset.id}`;
+  )}_sd_${plantAsset.relationships.plant_type
+    .map((crop) => cropIdToTermMap.get(crop.id).attributes.name)
+    .join('_')}`;
 
   const terminationLogData = {
     type: 'log--activity',
