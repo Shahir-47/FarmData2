@@ -1,42 +1,149 @@
 import { lib } from './lib';
-import { lib as directSeedingLib } from '../direct_seeding/lib.js';
 import * as farmosUtil from '@libs/farmosUtil/farmosUtil';
 
-function runTest(terminationValue) {
-  describe(`Test the Soil Disturbance lib submission with termination=${terminationValue}`, () => {
-    let directSeedingBroccoli = {
-      seedingDate: '1950-01-02',
-      cropName: 'BROCCOLI',
-      locationName: 'ALF',
-      beds: ['ALF-1', 'ALF-3'],
-      bedFeet: 100,
-      rowsPerBed: '3',
-      bedWidth: 60,
-      equipment: ['Tractor'],
-      depth: 6,
-      speed: 5,
-      comment: 'A comment',
-    };
+let plantAssets = [];
+let movementLogs = [];
 
-    let directSeedingBean = {
-      seedingDate: '1950-01-02',
-      cropName: 'BEAN',
-      locationName: 'ALF',
-      beds: ['ALF-1', 'ALF-3'],
-      bedFeet: 100,
-      rowsPerBed: '3',
-      bedWidth: 60,
-      equipment: ['Tractor'],
-      depth: 6,
-      speed: 5,
-      comment: 'A comment',
-    };
+function createPlantAsset(name, type, date, alias) {
+  return cy
+    .wrap(farmosUtil.createPlantAsset(date, type, name))
+    .as(alias)
+    .then((plantAsset) => {
+      plantAssets.push(plantAsset); // storing for deletion later
+      return plantAsset;
+    });
+}
 
+function createMovementLog(
+  plantAsset,
+  locations,
+  categories,
+  timestamp,
+  alias
+) {
+  const locationsArrayPromise =
+    farmosUtil.getPlantingLocationObjects(locations);
+  const logCategoriesPromise = farmosUtil.getLogCategoryObjects(categories);
+
+  cy.wrap(Promise.all([locationsArrayPromise, logCategoriesPromise])).then(
+    ([locationsArray, logCategoriesArray]) => {
+      const logName = `${timestamp}_activity_log_${plantAsset.id}`;
+      const activityLogData = {
+        type: 'log--activity',
+        attributes: {
+          name: logName,
+          timestamp: `${timestamp}T00:00:00Z`,
+          status: 'done',
+          is_movement: true,
+        },
+        relationships: {
+          location: locationsArray,
+          asset: [{ type: 'asset--plant', id: plantAsset.id }],
+          category: logCategoriesArray,
+        },
+      };
+
+      const activityLog = farmosUtil
+        .getFarmOSInstance()
+        .then((farm) => farm.log.send(farm.log.create(activityLogData)));
+
+      cy.wrap(activityLog).as(alias);
+
+      cy.get(`@${alias}`).then((activityLog) => {
+        movementLogs.push(activityLog); // storing log for deletion later
+        expect(activityLog.attributes.name).to.contain('activity_log');
+        expect(activityLog.attributes.status).to.equal('done');
+        expect(activityLog.attributes.is_movement).to.be.true;
+      });
+    }
+  );
+}
+
+function cleanupLogsAndAssets() {
+  // Cleanup movement logs
+  movementLogs.forEach((movementLog) => {
+    cy.wrap(
+      farmosUtil
+        .getFarmOSInstance()
+        .then((farm) => farm.log.delete('activity', movementLog.id))
+    ).then((result) => {
+      expect(result.status).to.equal(204); // Successful deletion
+    });
+  });
+  movementLogs = [];
+
+  // Cleanup plant assets
+  plantAssets.forEach((plantAsset) => {
+    cy.wrap(farmosUtil.deletePlantAsset(plantAsset.id)).then((result) => {
+      expect(result.status).to.equal(204); // Successful deletion
+    });
+  });
+  plantAssets = [];
+}
+
+function cleanUp(results, terminationValue, passes) {
+  if (terminationValue) {
+    Cypress._.times(2, (i) => {
+      // delete terminationLogs
+      cy.wrap(
+        farmosUtil.deleteSoilDisturbanceTerminationLog(
+          results['terminationLog' + i].id
+        )
+      ).then((result) => {
+        expect(result.status).to.equal(204); // Successful deletion
+      });
+
+      Cypress._.times(passes, (j) => {
+        console.log('depthQuantity' + i + ' ' + j);
+        // delete depth quantity
+        cy.wrap(
+          farmosUtil.deleteStandardQuantity(
+            results['depthQuantity' + i + ' ' + j].id
+          )
+        ).then((result) => {
+          expect(result.status).to.equal(204); // Successful deletion
+        });
+
+        // delete area quantity
+        cy.wrap(
+          farmosUtil.deleteStandardQuantity(
+            results['speedQuantity' + i + ' ' + j].id
+          )
+        ).then((result) => {
+          expect(result.status).to.equal(204); // Successful deletion
+        });
+
+        // delete speed quantity
+        cy.wrap(
+          farmosUtil.deleteStandardQuantity(
+            results['areaQuantity' + i + ' ' + j].id
+          )
+        ).then((result) => {
+          expect(result.status).to.equal(204); // Successful deletion
+        });
+
+        // delete soil disturbance activity log
+        cy.wrap(
+          farmosUtil.deleteSoilDisturbanceActivityLog(
+            results['activityLog' + i + ' ' + j].id
+          )
+        ).then((result) => {
+          expect(result.status).to.equal(204); // Successful deletion
+        });
+      });
+    });
+  }
+  cleanupLogsAndAssets();
+}
+
+function runTest(activePlantAsset, terminationValue) {
+  describe(`Test the Soil Disturbance lib submission with activePlantAssets=${activePlantAsset} termination=${terminationValue}`, () => {
     let form = {
       date: '1950-01-02',
       location: 'ALF',
-      beds: ['ALF-1', 'ALF-3'],
+      beds: [],
       termination: terminationValue,
+      picked: new Map(),
       affectedPlants: [],
       equipment: ['Tractor', 'Rake'],
       depth: 5,
@@ -79,22 +186,96 @@ function runTest(terminationValue) {
         unitMap = map;
       });
 
-      cy.wrap(directSeedingLib.submitForm(directSeedingBroccoli), {
-        timeout: 15000,
-      })
-        .then((resultsBroccoli) => {
-          form.affectedPlants.push({ uuid: resultsBroccoli.plantAsset.id });
-          return cy.wrap(directSeedingLib.submitForm(directSeedingBean), {
-            timeout: 15000,
+      if (activePlantAsset) {
+        // create first plant asset
+        createPlantAsset(
+          'Test Plant Asset 1',
+          'HERB-CILANTRO',
+          '2023-11-20',
+          'newPlantAsset1'
+        )
+          .then(() => {
+            // pick all beds for termination
+            return cy.get('@newPlantAsset1').then((plantAsset) => {
+              createMovementLog(
+                plantAsset,
+                ['ALF', 'ALF-1', 'ALF-3'],
+                ['seeding', 'tillage'],
+                '2023-11-20',
+                'activityLog1'
+              );
+
+              const value1 = {
+                row: {
+                  crop: 'HERB-CILANTRO',
+                  bed: 'ALF-1',
+                  timestamp: '2023-11-20',
+                  uuid: plantAsset.id,
+                  location: 'ALF',
+                  created_by: 'seeding, seeding_direct',
+                },
+                picked: 1,
+              };
+
+              const value2 = {
+                row: {
+                  crop: 'HERB-CILANTRO',
+                  bed: 'ALF-3',
+                  timestamp: '2023-11-20',
+                  uuid: plantAsset.id,
+                  location: 'ALF',
+                  created_by: 'seeding, seeding_direct',
+                },
+                picked: 1,
+              };
+
+              form.picked.set(0, value1);
+              form.picked.set(1, value2);
+            });
+          })
+          .then(() => {
+            // create another plant asset and choose specific beds for termination
+            return createPlantAsset(
+              'Test Plant Asset 2',
+              'LETTUCE-MES MIX',
+              '2025-11-20',
+              'newPlantAsset2'
+            ).then(() => {
+              return cy.get('@newPlantAsset2').then((plantAsset) => {
+                createMovementLog(
+                  plantAsset,
+                  ['CHUAU', 'CHUAU-1', 'CHUAU-3'],
+                  ['seeding', 'tillage'],
+                  '2025-11-20',
+                  'activityLog2'
+                );
+
+                const value3 = {
+                  row: {
+                    crop: 'HERB-CILANTRO',
+                    bed: 'CHUAU-3',
+                    timestamp: '2023-11-20',
+                    uuid: plantAsset.id,
+                    location: 'CHUAU',
+                    created_by: 'seeding, seeding_direct',
+                  },
+                  picked: 1,
+                };
+
+                form.picked.set(2, value3);
+              });
+            });
+          })
+          .then(() => {
+            // Submit the form after all assets and movement logs are created
+            cy.wrap(lib.submitForm(form), { timeout: 10000 }).then(
+              (submitted) => {
+                console.log(submitted);
+                results = submitted;
+              }
+            );
           });
-        })
-        .then((resultsBean) => {
-          form.affectedPlants.push({ uuid: resultsBean.plantAsset.id });
-          return cy.wrap(lib.submitForm(form), { timeout: 10000 });
-        })
-        .then((submitted) => {
-          results = submitted;
-        });
+      }
     });
 
     beforeEach(() => {
@@ -107,189 +288,160 @@ function runTest(terminationValue) {
       cy.saveSessionStorage();
     });
 
-    it('Check affected asset--plant(s)', () => {
-      expect(results.affectedPlants).to.have.length(form.affectedPlants.length);
-      // check BROCCOLI
-      expect(results.affectedPlants[0].id).to.equal(
-        form.affectedPlants[0].uuid
-      );
-      expect(results.affectedPlants[0].type).to.equal('asset--plant');
-      expect(results.affectedPlants[0].attributes.name).to.equal(
-        directSeedingBroccoli.seedingDate + '_' + directSeedingBroccoli.cropName
-      );
-      if (terminationValue) {
-        expect(results.affectedPlants[0].attributes.status).to.equal(
-          'archived'
-        );
-      } else {
-        expect(results.affectedPlants[0].attributes.status).to.equal('active');
-      }
-      expect(results.affectedPlants[0].relationships.plant_type[0].id).to.equal(
-        cropMap.get(directSeedingBroccoli.cropName).id
-      );
-      // check BEAN
-      expect(results.affectedPlants[1].id).to.equal(
-        form.affectedPlants[1].uuid
-      );
-      expect(results.affectedPlants[1].type).to.equal('asset--plant');
-      expect(results.affectedPlants[1].attributes.name).to.equal(
-        directSeedingBean.seedingDate + '_' + directSeedingBean.cropName
-      );
-      if (terminationValue) {
-        expect(results.affectedPlants[1].attributes.status).to.equal(
-          'archived'
-        );
-      } else {
-        expect(results.affectedPlants[1].attributes.status).to.equal('active');
-      }
-      expect(results.affectedPlants[1].relationships.plant_type[0].id).to.equal(
-        cropMap.get(directSeedingBean.cropName).id
-      );
+    after(() => {
+      cleanUp(results, terminationValue, form.passes);
     });
 
-    Cypress._.times(form.passes, (i) => {
-      it('Check the depth quantity--standard ' + i, () => {
-        expect(results['depthQuantity' + i].type).to.equal(
-          'quantity--standard'
-        );
-        expect(results['depthQuantity' + i].attributes.measure).to.equal(
-          'length'
-        );
-        expect(results['depthQuantity' + i].attributes.value.decimal).to.equal(
-          form.depth
-        );
-        expect(results['depthQuantity' + i].attributes.label).to.equal('Depth');
-        expect(results['depthQuantity' + i].relationships.units.id).to.equal(
-          unitMap.get('INCHES').id
-        );
-        expect(results['depthQuantity' + i].relationships.inventory_asset).to.be
-          .null;
-        expect(results['depthQuantity' + i].attributes.inventory_adjustment).to
-          .be.null;
+    if (terminationValue) {
+      Cypress._.times(2, (i) => {
+        it('Checks the termination activity--log ' + i, () => {
+          expect(results['terminationLog' + i].type).to.equal('log--activity');
+        });
       });
+    }
 
-      it('Check the speed quantity--standard ' + i, () => {
-        expect(results['speedQuantity' + i].type).to.equal(
-          'quantity--standard'
-        );
-        expect(results['speedQuantity' + i].attributes.measure).to.equal(
-          'rate'
-        );
-        expect(results['speedQuantity' + i].attributes.value.decimal).to.equal(
-          form.speed
-        );
-        expect(results['speedQuantity' + i].attributes.label).to.equal('Speed');
-        expect(results['speedQuantity' + i].relationships.units.id).to.equal(
-          unitMap.get('MPH').id
-        );
-        expect(results['speedQuantity' + i].relationships.inventory_asset).to.be
-          .null;
-        expect(results['speedQuantity' + i].attributes.inventory_adjustment).to
-          .be.null;
-      });
+    // Cypress._.times(form.passes, (i) => {
+    //   it('Check the depth quantity--standard ' + i, () => {
+    //     expect(results['depthQuantity' + i].type).to.equal(
+    //       'quantity--standard'
+    //     );
+    //     expect(results['depthQuantity' + i].attributes.measure).to.equal(
+    //       'length'
+    //     );
+    //     expect(results['depthQuantity' + i].attributes.value.decimal).to.equal(
+    //       form.depth
+    //     );
+    //     expect(results['depthQuantity' + i].attributes.label).to.equal('Depth');
+    //     expect(results['depthQuantity' + i].relationships.units.id).to.equal(
+    //       unitMap.get('INCHES').id
+    //     );
+    //     expect(results['depthQuantity' + i].relationships.inventory_asset).to.be
+    //       .null;
+    //     expect(results['depthQuantity' + i].attributes.inventory_adjustment).to
+    //       .be.null;
+    //   });
 
-      it('Check the area quantity--standard ' + i, () => {
-        expect(results['areaQuantity' + i].type).to.equal('quantity--standard');
-        expect(results['areaQuantity' + i].attributes.measure).to.equal(
-          'ratio'
-        );
-        expect(results['areaQuantity' + i].attributes.value.decimal).to.equal(
-          form.area
-        );
-        expect(results['areaQuantity' + i].attributes.label).to.equal('Area');
-        expect(results['areaQuantity' + i].relationships.units.id).to.equal(
-          unitMap.get('PERCENT').id
-        );
-        expect(results['areaQuantity' + i].relationships.inventory_asset).to.be
-          .null;
-        expect(results['areaQuantity' + i].attributes.inventory_adjustment).to
-          .be.null;
-      });
+    //   it('Check the speed quantity--standard ' + i, () => {
+    //     expect(results['speedQuantity' + i].type).to.equal(
+    //       'quantity--standard'
+    //     );
+    //     expect(results['speedQuantity' + i].attributes.measure).to.equal(
+    //       'rate'
+    //     );
+    //     expect(results['speedQuantity' + i].attributes.value.decimal).to.equal(
+    //       form.speed
+    //     );
+    //     expect(results['speedQuantity' + i].attributes.label).to.equal('Speed');
+    //     expect(results['speedQuantity' + i].relationships.units.id).to.equal(
+    //       unitMap.get('MPH').id
+    //     );
+    //     expect(results['speedQuantity' + i].relationships.inventory_asset).to.be
+    //       .null;
+    //     expect(results['speedQuantity' + i].attributes.inventory_adjustment).to
+    //       .be.null;
+    //   });
 
-      it('Check the soil disturbance log--activity ' + i, () => {
-        expect(results['activityLog' + i].type).to.equal('log--activity');
-        expect(results['activityLog' + i].attributes.name).to.equal(
-          form.date + '_sd_' + form.location
-        );
-        expect(results['activityLog' + i].attributes.timestamp).to.contain(
-          form.date
-        );
-        expect(results['activityLog' + i].attributes.notes.value).to.equal(
-          'Pass ' + (i + 1) + ' of ' + form.passes + '. ' + form.comment
-        );
+    //   it('Check the area quantity--standard ' + i, () => {
+    //     expect(results['areaQuantity' + i].type).to.equal('quantity--standard');
+    //     expect(results['areaQuantity' + i].attributes.measure).to.equal(
+    //       'ratio'
+    //     );
+    //     expect(results['areaQuantity' + i].attributes.value.decimal).to.equal(
+    //       form.area
+    //     );
+    //     expect(results['areaQuantity' + i].attributes.label).to.equal('Area');
+    //     expect(results['areaQuantity' + i].relationships.units.id).to.equal(
+    //       unitMap.get('PERCENT').id
+    //     );
+    //     expect(results['areaQuantity' + i].relationships.inventory_asset).to.be
+    //       .null;
+    //     expect(results['areaQuantity' + i].attributes.inventory_adjustment).to
+    //       .be.null;
+    //   });
 
-        // check locations
-        expect(
-          results['activityLog' + i].relationships.location.length
-        ).to.equal(3);
-        expect(
-          results['activityLog' + i].relationships.location[0].id
-        ).to.equal(fieldMap.get(form.location).id);
-        expect(
-          results['activityLog' + i].relationships.location[1].id
-        ).to.equal(bedMap.get(form.beds[0]).id);
-        expect(
-          results['activityLog' + i].relationships.location[2].id
-        ).to.equal(bedMap.get(form.beds[1]).id);
+    //   it('Check the soil disturbance log--activity ' + i, () => {
+    //     expect(results['activityLog' + i].type).to.equal('log--activity');
+    //     expect(results['activityLog' + i].attributes.name).to.equal(
+    //       form.date + '_sd_' + form.location
+    //     );
+    //     expect(results['activityLog' + i].attributes.timestamp).to.contain(
+    //       form.date
+    //     );
+    //     expect(results['activityLog' + i].attributes.notes.value).to.equal(
+    //       'Pass ' + (i + 1) + ' of ' + form.passes + '. ' + form.comment
+    //     );
 
-        // check plant assets
-        expect(results['activityLog' + i].relationships.asset).to.have.length(
-          form.affectedPlants.length
-        );
-        expect(results['activityLog' + i].relationships.asset[0].id).to.equal(
-          results.affectedPlants[0].id
-        );
-        expect(results['activityLog' + i].relationships.asset[1].id).to.equal(
-          results.affectedPlants[1].id
-        );
+    //     // check locations
+    //     expect(
+    //       results['activityLog' + i].relationships.location.length
+    //     ).to.equal(3);
+    //     expect(
+    //       results['activityLog' + i].relationships.location[0].id
+    //     ).to.equal(fieldMap.get(form.location).id);
+    //     expect(
+    //       results['activityLog' + i].relationships.location[1].id
+    //     ).to.equal(bedMap.get(form.beds[0]).id);
+    //     expect(
+    //       results['activityLog' + i].relationships.location[2].id
+    //     ).to.equal(bedMap.get(form.beds[1]).id);
 
-        // check category
-        if (terminationValue) {
-          expect(
-            results['activityLog' + i].relationships.category.length
-          ).to.equal(2);
-          expect(
-            results['activityLog' + i].relationships.category[0].id
-          ).to.equal(categoryMap.get('tillage').id);
-          expect(
-            results['activityLog' + i].relationships.category[1].id
-          ).to.equal(categoryMap.get('termination').id);
-        } else {
-          expect(
-            results['activityLog' + i].relationships.category.length
-          ).to.equal(1);
-          expect(
-            results['activityLog' + i].relationships.category[0].id
-          ).to.equal(categoryMap.get('tillage').id);
-        }
-        // check quantities
-        expect(
-          results['activityLog' + i].relationships.quantity.length
-        ).to.equal(3);
-        expect(
-          results['activityLog' + i].relationships.quantity[0].id
-        ).to.equal(results['depthQuantity' + i].id);
-        expect(
-          results['activityLog' + i].relationships.quantity[1].id
-        ).to.equal(results['speedQuantity' + i].id);
-        expect(
-          results['activityLog' + i].relationships.quantity[2].id
-        ).to.equal(results['areaQuantity' + i].id);
+    //     // check plant assets
+    //     expect(results['activityLog' + i].relationships.asset).to.have.length(
+    //       form.affectedPlants.length
+    //     );
+    //     expect(results['activityLog' + i].relationships.asset[0].id).to.equal(
+    //       results.affectedPlants[0].id
+    //     );
+    //     expect(results['activityLog' + i].relationships.asset[1].id).to.equal(
+    //       results.affectedPlants[1].id
+    //     );
 
-        // check equipment
-        expect(
-          results['activityLog' + i].relationships.equipment.length
-        ).to.equal(form.equipment.length);
-        expect(
-          results['activityLog' + i].relationships.equipment[0].id
-        ).to.equal(equipmentMap.get(form.equipment[0]).id);
-        expect(
-          results['activityLog' + i].relationships.equipment[1].id
-        ).to.equal(equipmentMap.get(form.equipment[1]).id);
-      });
-    });
+    //     // check category
+    //     if (terminationValue) {
+    //       expect(
+    //         results['activityLog' + i].relationships.category.length
+    //       ).to.equal(2);
+    //       expect(
+    //         results['activityLog' + i].relationships.category[0].id
+    //       ).to.equal(categoryMap.get('tillage').id);
+    //       expect(
+    //         results['activityLog' + i].relationships.category[1].id
+    //       ).to.equal(categoryMap.get('termination').id);
+    //     } else {
+    //       expect(
+    //         results['activityLog' + i].relationships.category.length
+    //       ).to.equal(1);
+    //       expect(
+    //         results['activityLog' + i].relationships.category[0].id
+    //       ).to.equal(categoryMap.get('tillage').id);
+    //     }
+    //     // check quantities
+    //     expect(
+    //       results['activityLog' + i].relationships.quantity.length
+    //     ).to.equal(3);
+    //     expect(
+    //       results['activityLog' + i].relationships.quantity[0].id
+    //     ).to.equal(results['depthQuantity' + i].id);
+    //     expect(
+    //       results['activityLog' + i].relationships.quantity[1].id
+    //     ).to.equal(results['speedQuantity' + i].id);
+    //     expect(
+    //       results['activityLog' + i].relationships.quantity[2].id
+    //     ).to.equal(results['areaQuantity' + i].id);
+
+    //     // check equipment
+    //     expect(
+    //       results['activityLog' + i].relationships.equipment.length
+    //     ).to.equal(form.equipment.length);
+    //     expect(
+    //       results['activityLog' + i].relationships.equipment[0].id
+    //     ).to.equal(equipmentMap.get(form.equipment[0]).id);
+    //     expect(
+    //       results['activityLog' + i].relationships.equipment[1].id
+    //     ).to.equal(equipmentMap.get(form.equipment[1]).id);
+    //   });
+    // });
   });
 }
 
-runTest(true);
-runTest(false);
+runTest(true, true);

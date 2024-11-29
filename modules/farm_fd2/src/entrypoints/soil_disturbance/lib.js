@@ -26,64 +26,34 @@ async function submitForm(formData) {
     let ops = [];
     const equipmentAssets = [];
 
-    const affectedPlants = {
-      name: 'affectedPlants',
-      do: async () => {
-        let affectedPlants = [];
-        if (formData.termination) {
-          for (const [, entry] of formData.picked.entries()) {
-            const plantUuid = entry.row.uuid;
+    // Group by plant assets and save its corresponding beds to terminate
+    let plantAssets = {};
+    formData.picked.forEach((entry) => {
+      const { uuid, bed } = entry.row;
+      console.log('UUID:', uuid, 'Bed:', bed);
 
-            // Find all picked beds for the current plant asset (identified by UUID)
-            const pickedBeds = Array.from(formData.picked.values())
-              .filter((pick) => pick.row.uuid === plantUuid)
-              .map((pick) => pick.row.bed);
+      if (!plantAssets[uuid]) {
+        plantAssets[uuid] = {
+          beds: [],
+        };
+      }
 
-            // Retrieve plant asset to check its beds (if necessary)
-            const plantAsset = await farmosUtil.getPlantAsset(plantUuid);
+      if (bed !== 'N/A') {
+        plantAssets[uuid].beds.push(bed);
+      }
+    });
+    plantAssets = Object.entries(plantAssets); // [[uuid, {beds}]
 
-            // Check if all beds of the plantAsset are picked
-            const allBedsChecked = plantAsset.beds.every((bed) =>
-              pickedBeds.includes(bed)
-            );
-            const hasNoBeds =
-              plantAsset.beds.length === 0 || pickedBeds.includes('N/A');
+    // if no active plant assets exist
+    if (plantAssets.length === 0) {
+      console.log('no plant');
+      console.log(formData);
+      console.log(plantAssets);
+      const equipmentMap = await farmosUtil.getEquipmentNameToAssetMap();
+      for (const equipmentName of formData.equipment) {
+        equipmentAssets.push(equipmentMap.get(equipmentName));
+      }
 
-            if (allBedsChecked || hasNoBeds) {
-              // Archive the plantAsset if all beds are checked or it has no beds
-              affectedPlants.push(
-                await farmosUtil.archivePlantAsset(plantUuid, true)
-              );
-            } else {
-              // Store in the affectedPlants array if not fully archived
-              affectedPlants.push(await farmosUtil.getPlantAsset(plantUuid));
-            }
-          }
-        } else {
-          // If not a termination event, retrieve the plant assets normally
-          for (const [, entry] of formData.picked.entries()) {
-            const plantUuid = entry.row.uuid;
-            affectedPlants.push(await farmosUtil.getPlantAsset(plantUuid));
-          }
-        }
-        return affectedPlants;
-      },
-      undo: async () => {
-        if (formData.termination) {
-          for (const [, entry] of formData.picked.entries()) {
-            await farmosUtil.archivePlantAsset(entry.row.uuid, false);
-          }
-        }
-      },
-    };
-    ops.push(affectedPlants);
-
-    const equipmentMap = await farmosUtil.getEquipmentNameToAssetMap();
-    for (const equipmentName of formData.equipment) {
-      equipmentAssets.push(equipmentMap.get(equipmentName));
-    }
-
-    if (formData.affectedPlants.length === 0) {
       for (let i = 0; i < formData.passes; i++) {
         const depthQuantity = {
           name: 'depthQuantity' + i,
@@ -147,7 +117,7 @@ async function submitForm(formData) {
               formData.location,
               formData.beds,
               formData.termination ? ['tillage', 'termination'] : ['tillage'],
-              null, // No plantAsset
+              null,
               [
                 results['depthQuantity' + i],
                 results['speedQuantity' + i],
@@ -171,25 +141,42 @@ async function submitForm(formData) {
         ops.push(activityLog);
       }
     } else {
-      console.log(formData.picked.entries().value.row.uuid);
+      // if we have a active plant asset, then create a termination log (optional)
+      // and a soil disturbance log (required) per plant asset
+      for (let i = 0; i < plantAssets.length; i++) {
+        const [uuid, { beds }] = plantAssets[i];
 
-      for (const uuid of uniqueUuids) {
-        const plantAsset = await farmosUtil.getPlantAsset(uuid);
+        console.log(uuid + ' ' + beds);
 
-        const pickedBeds = Array.from(formData.picked.values())
-          .filter((pick) => pick.row.uuid === uuid)
-          .map((pick) => pick.row.bed);
+        if (formData.termination) {
+          console.log('terminating.....');
+          const terminationLog = {
+            name: 'terminationLog' + i,
+            do: async () => {
+              return await farmosUtil.createSoilDisturbanceTerminationLog(
+                formData.date,
+                formData.location,
+                beds.length > 0 ? beds : [],
+                await farmosUtil.getPlantAsset(uuid)
+              );
+            },
+            undo: async (results) => {
+              await farmosUtil.deleteSoilDisturbanceTerminationLog(
+                results['terminationLog' + i].id
+              );
+            },
+          };
+          ops.push(terminationLog);
+        }
 
-        // Determine new beds for termination; otherwise, use picked beds for tillage
-        const bedNames = formData.termination
-          ? plantAsset.beds.length > 0
-            ? plantAsset.beds.filter((bed) => !pickedBeds.includes(bed))
-            : [] // Pass an empty array if no beds exist
-          : pickedBeds; // Use picked beds for non-termination events
+        const equipmentMap = await farmosUtil.getEquipmentNameToAssetMap();
+        for (const equipmentName of formData.equipment) {
+          equipmentAssets.push(equipmentMap.get(equipmentName));
+        }
 
-        for (let i = 0; i < formData.passes; i++) {
+        for (let j = 0; j < formData.passes; j++) {
           const depthQuantity = {
-            name: 'depthQuantity' + i,
+            name: 'depthQuantity' + i + ' ' + j,
             do: async () => {
               return await farmosUtil.createStandardQuantity(
                 'length',
@@ -200,14 +187,14 @@ async function submitForm(formData) {
             },
             undo: async (results) => {
               await farmosUtil.deleteStandardQuantity(
-                results['depthQuantity' + i].id
+                results['depthQuantity' + i + ' ' + j].id
               );
             },
           };
           ops.push(depthQuantity);
 
           const speedQuantity = {
-            name: 'speedQuantity' + i,
+            name: 'speedQuantity' + i + ' ' + j,
             do: async () => {
               return await farmosUtil.createStandardQuantity(
                 'rate',
@@ -218,14 +205,14 @@ async function submitForm(formData) {
             },
             undo: async (results) => {
               await farmosUtil.deleteStandardQuantity(
-                results['speedQuantity' + i].id
+                results['speedQuantity' + i + '' + j].id
               );
             },
           };
           ops.push(speedQuantity);
 
           const areaQuantity = {
-            name: 'areaQuantity' + i,
+            name: 'areaQuantity' + i + ' ' + j,
             do: async () => {
               return await farmosUtil.createStandardQuantity(
                 'ratio',
@@ -236,38 +223,42 @@ async function submitForm(formData) {
             },
             undo: async (results) => {
               await farmosUtil.deleteStandardQuantity(
-                results['areaQuantity' + i].id
+                results['areaQuantity' + i + ' ' + j].id
               );
             },
           };
           ops.push(areaQuantity);
 
           const activityLog = {
-            name: 'activityLog' + i,
+            name: 'activityLog' + i + ' ' + j,
             do: async (results) => {
               return await farmosUtil.createSoilDisturbanceActivityLog(
                 formData.date,
                 formData.location,
-                bedNames,
+                beds.length > 0 ? beds : [],
                 formData.termination ? ['tillage', 'termination'] : ['tillage'],
-                plantAsset,
+                await farmosUtil.getPlantAsset(uuid),
                 [
-                  results['depthQuantity' + i],
-                  results['speedQuantity' + i],
-                  results['areaQuantity' + i],
+                  results['depthQuantity' + i + ' ' + j],
+                  results['speedQuantity' + i + ' ' + j],
+                  results['areaQuantity' + i + ' ' + j],
                 ],
                 equipmentAssets,
                 'Pass ' +
                   (i + 1) +
                   ' of ' +
                   formData.passes +
+                  ' of Plant Asset ' +
+                  (j + 1) +
+                  ' of ' +
+                  plantAssets.length +
                   '. ' +
                   formData.comment
               );
             },
             undo: async (results) => {
               await farmosUtil.deleteSoilDisturbanceActivityLog(
-                results['activityLog' + i].id
+                results['activityLog' + i + ' ' + j].id
               );
             },
           };
@@ -278,6 +269,8 @@ async function submitForm(formData) {
 
     const result = await farmosUtil.runTransaction(ops);
     result['equipment'] = equipmentAssets;
+
+    console.log(result);
 
     return result;
   } catch (error) {
