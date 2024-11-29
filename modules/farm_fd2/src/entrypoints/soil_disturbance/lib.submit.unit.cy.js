@@ -81,17 +81,20 @@ function cleanupLogsAndAssets() {
   plantAssets = [];
 }
 
-function cleanUp(results, terminationValue, passes) {
-  if (terminationValue) {
+function cleanUp(results, activePlantAsset, terminationValue, passes) {
+  if (activePlantAsset) {
+    console.log(results);
     Cypress._.times(2, (i) => {
-      // delete terminationLogs
-      cy.wrap(
-        farmosUtil.deleteSoilDisturbanceTerminationLog(
-          results['terminationLog' + i].id
-        )
-      ).then((result) => {
-        expect(result.status).to.equal(204); // Successful deletion
-      });
+      if (terminationValue) {
+        // delete terminationLogs
+        cy.wrap(
+          farmosUtil.deleteSoilDisturbanceTerminationLog(
+            results['terminationLog' + i].id
+          )
+        ).then((result) => {
+          expect(result.status).to.equal(204); // Successful deletion
+        });
+      }
 
       Cypress._.times(passes, (j) => {
         console.log('depthQuantity' + i + ' ' + j);
@@ -132,8 +135,41 @@ function cleanUp(results, terminationValue, passes) {
         });
       });
     });
+    cleanupLogsAndAssets();
+  } else {
+    Cypress._.times(passes, (i) => {
+      console.log('depthQuantity' + i);
+      // delete depth quantity
+      cy.wrap(
+        farmosUtil.deleteStandardQuantity(results['depthQuantity' + i].id)
+      ).then((result) => {
+        expect(result.status).to.equal(204); // Successful deletion
+      });
+
+      // delete area quantity
+      cy.wrap(
+        farmosUtil.deleteStandardQuantity(results['speedQuantity' + i].id)
+      ).then((result) => {
+        expect(result.status).to.equal(204); // Successful deletion
+      });
+
+      // delete speed quantity
+      cy.wrap(
+        farmosUtil.deleteStandardQuantity(results['areaQuantity' + i].id)
+      ).then((result) => {
+        expect(result.status).to.equal(204); // Successful deletion
+      });
+
+      // delete soil disturbance activity log
+      cy.wrap(
+        farmosUtil.deleteSoilDisturbanceActivityLog(
+          results['activityLog' + i].id
+        )
+      ).then((result) => {
+        expect(result.status).to.equal(204); // Successful deletion
+      });
+    });
   }
-  cleanupLogsAndAssets();
 }
 
 function runTest(activePlantAsset, terminationValue) {
@@ -155,7 +191,6 @@ function runTest(activePlantAsset, terminationValue) {
 
     let bedMap = null;
     let categoryMap = null;
-    let cropMap = null;
     let equipmentMap = null;
     let fieldMap = null;
     let unitMap = null;
@@ -168,10 +203,6 @@ function runTest(activePlantAsset, terminationValue) {
 
       cy.wrap(farmosUtil.getLogCategoryToTermMap()).then((map) => {
         categoryMap = map;
-      });
-
-      cy.wrap(farmosUtil.getCropNameToTermMap()).then((map) => {
-        cropMap = map;
       });
 
       cy.wrap(farmosUtil.getEquipmentNameToAssetMap()).then((map) => {
@@ -268,13 +299,21 @@ function runTest(activePlantAsset, terminationValue) {
           })
           .then(() => {
             // Submit the form after all assets and movement logs are created
-            cy.wrap(lib.submitForm(form), { timeout: 10000 }).then(
+            cy.wrap(lib.submitForm(form), { timeout: 60000 }).then(
               (submitted) => {
                 console.log(submitted);
                 results = submitted;
               }
             );
           });
+      } else {
+        form.beds.push('ALF-1');
+        form.beds.push('ALF-3');
+
+        cy.wrap(lib.submitForm(form), { timeout: 60000 }).then((submitted) => {
+          console.log(submitted);
+          results = submitted;
+        });
       }
     });
 
@@ -289,159 +328,412 @@ function runTest(activePlantAsset, terminationValue) {
     });
 
     after(() => {
-      cleanUp(results, terminationValue, form.passes);
+      if (activePlantAsset) {
+        cleanUp(results, activePlantAsset, terminationValue, form.passes);
+      } else {
+        cleanUp(results, null, false, form.passes);
+      }
     });
 
-    if (terminationValue) {
+    if (activePlantAsset) {
       Cypress._.times(2, (i) => {
-        it('Checks the termination activity--log ' + i, () => {
-          expect(results['terminationLog' + i].type).to.equal('log--activity');
+        if (terminationValue) {
+          it('Checks the termination activity--log ' + i, () => {
+            expect(results['terminationLog' + i].type).to.equal(
+              'log--activity'
+            );
+
+            // attributes
+            expect(results['terminationLog' + i].attributes.name).to.equal(
+              form.date + '_sd_' + plantAssets[i].attributes.name.split('_')[1]
+            );
+            expect(
+              results['terminationLog' + i].attributes.timestamp
+            ).to.contain(form.date);
+            expect(results['terminationLog' + i].attributes.status).to.equal(
+              'done'
+            );
+            expect(
+              results['terminationLog' + i].attributes.is_movement
+            ).to.equal(true);
+
+            // location
+            expect(
+              results['terminationLog' + i].relationships.location.length
+            ).to.equal(1);
+            expect(
+              results['terminationLog' + i].relationships.location[0].id
+            ).to.equal(fieldMap.get(form.location).id);
+
+            // plant assets
+            expect(
+              results['terminationLog' + i].relationships.asset
+            ).to.have.length(1);
+            expect(
+              results['terminationLog' + i].relationships.asset[0].id
+            ).to.equal(plantAssets[i].id);
+
+            // category
+            expect(
+              results['terminationLog' + i].relationships.category.length
+            ).to.equal(1);
+            expect(
+              results['terminationLog' + i].relationships.category[0].id
+            ).to.equal(categoryMap.get('termination').id);
+          });
+        }
+
+        Cypress._.times(form.passes, (j) => {
+          it('Check the depth quantity--standard ' + i + ' ' + j, () => {
+            expect(results['depthQuantity' + i + ' ' + j].type).to.equal(
+              'quantity--standard'
+            );
+            expect(
+              results['depthQuantity' + i + ' ' + j].attributes.measure
+            ).to.equal('length');
+            expect(
+              results['depthQuantity' + i + ' ' + j].attributes.value.decimal
+            ).to.equal(form.depth);
+            expect(
+              results['depthQuantity' + i + ' ' + j].attributes.label
+            ).to.equal('Depth');
+            expect(
+              results['depthQuantity' + i + ' ' + j].relationships.units.id
+            ).to.equal(unitMap.get('INCHES').id);
+            expect(
+              results['depthQuantity' + i + ' ' + j].relationships
+                .inventory_asset
+            ).to.be.null;
+            expect(
+              results['depthQuantity' + i + ' ' + j].attributes
+                .inventory_adjustment
+            ).to.be.null;
+          });
+
+          it('Check the speed quantity--standard ' + i + ' ' + j, () => {
+            expect(results['speedQuantity' + i + ' ' + j].type).to.equal(
+              'quantity--standard'
+            );
+            expect(
+              results['speedQuantity' + i + ' ' + j].attributes.measure
+            ).to.equal('rate');
+            expect(
+              results['speedQuantity' + i + ' ' + j].attributes.value.decimal
+            ).to.equal(form.speed);
+            expect(
+              results['speedQuantity' + i + ' ' + j].attributes.label
+            ).to.equal('Speed');
+            expect(
+              results['speedQuantity' + i + ' ' + j].relationships.units.id
+            ).to.equal(unitMap.get('MPH').id);
+            expect(
+              results['speedQuantity' + i + ' ' + j].relationships
+                .inventory_asset
+            ).to.be.null;
+            expect(
+              results['speedQuantity' + i + ' ' + j].attributes
+                .inventory_adjustment
+            ).to.be.null;
+          });
+
+          it('Check the area quantity--standard ' + i + ' ' + j, () => {
+            expect(results['areaQuantity' + i + ' ' + j].type).to.equal(
+              'quantity--standard'
+            );
+            expect(
+              results['areaQuantity' + i + ' ' + j].attributes.measure
+            ).to.equal('ratio');
+            expect(
+              results['areaQuantity' + i + ' ' + j].attributes.value.decimal
+            ).to.equal(form.area);
+            expect(
+              results['areaQuantity' + i + ' ' + j].attributes.label
+            ).to.equal('Area');
+            expect(
+              results['areaQuantity' + i + ' ' + j].relationships.units.id
+            ).to.equal(unitMap.get('PERCENT').id);
+            expect(
+              results['areaQuantity' + i + ' ' + j].relationships
+                .inventory_asset
+            ).to.be.null;
+            expect(
+              results['areaQuantity' + i + ' ' + j].attributes
+                .inventory_adjustment
+            ).to.be.null;
+          });
+
+          it('Check the soil disturbance log--activity ' + i + ' ' + j, () => {
+            expect(results['activityLog' + i + ' ' + j].type).to.equal(
+              'log--activity'
+            );
+
+            // check attributes
+            expect(
+              results['activityLog' + i + ' ' + j].attributes.name
+            ).to.equal(form.date + '_sd_' + form.location);
+            expect(
+              results['activityLog' + i + ' ' + j].attributes.timestamp
+            ).to.contain(form.date);
+            expect(
+              results['activityLog' + i + ' ' + j].attributes.status
+            ).to.equal('done');
+            expect(
+              results['activityLog' + i + ' ' + j].attributes.is_movement
+            ).to.equal(false);
+            expect(
+              results['activityLog' + i + ' ' + j].attributes.notes.value
+            ).to.equal(
+              'Pass ' +
+                (i + 1) +
+                ' of ' +
+                form.passes +
+                ' of Plant Asset ' +
+                (j + 1) +
+                ' of ' +
+                plantAssets.length +
+                '. ' +
+                form.comment
+            );
+
+            // check locations
+            if (i === 0) {
+              console.log(form.picked.get(0).row.bed);
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.location
+                  .length
+              ).to.equal(3);
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.location[0]
+                  .id
+              ).to.equal(fieldMap.get(form.location).id);
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.location[1]
+                  .id
+              ).to.equal(bedMap.get(form.picked.get(0).row.bed).id);
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.location[2]
+                  .id
+              ).to.equal(bedMap.get(form.picked.get(1).row.bed).id);
+            } else if (i === 1) {
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.location
+                  .length
+              ).to.equal(2);
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.location[0]
+                  .id
+              ).to.equal(fieldMap.get(form.location).id);
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.location[1]
+                  .id
+              ).to.equal(bedMap.get(form.picked.get(2).row.bed).id);
+            }
+
+            // check plant assets
+            expect(
+              results['activityLog' + i + ' ' + j].relationships.asset
+            ).to.have.length(1);
+            expect(
+              results['activityLog' + i + ' ' + j].relationships.asset[0].id
+            ).to.equal(plantAssets[i].id);
+
+            // check category
+            if (terminationValue) {
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.category
+                  .length
+              ).to.equal(2);
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.category[0]
+                  .id
+              ).to.equal(categoryMap.get('tillage').id);
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.category[1]
+                  .id
+              ).to.equal(categoryMap.get('termination').id);
+            } else {
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.category
+                  .length
+              ).to.equal(1);
+              expect(
+                results['activityLog' + i + ' ' + j].relationships.category[0]
+                  .id
+              ).to.equal(categoryMap.get('tillage').id);
+            }
+
+            // check quantities
+            expect(
+              results['activityLog' + i + ' ' + j].relationships.quantity.length
+            ).to.equal(3);
+            expect(
+              results['activityLog' + i + ' ' + j].relationships.quantity[0].id
+            ).to.equal(results['depthQuantity' + i + ' ' + j].id);
+            expect(
+              results['activityLog' + i + ' ' + j].relationships.quantity[1].id
+            ).to.equal(results['speedQuantity' + i + ' ' + j].id);
+            expect(
+              results['activityLog' + i + ' ' + j].relationships.quantity[2].id
+            ).to.equal(results['areaQuantity' + i + ' ' + j].id);
+
+            // check equipment
+            expect(
+              results['activityLog' + i + ' ' + j].relationships.equipment
+                .length
+            ).to.equal(form.equipment.length);
+            expect(
+              results['activityLog' + i + ' ' + j].relationships.equipment[0].id
+            ).to.equal(equipmentMap.get(form.equipment[0]).id);
+            expect(
+              results['activityLog' + i + ' ' + j].relationships.equipment[1].id
+            ).to.equal(equipmentMap.get(form.equipment[1]).id);
+          });
+        });
+      });
+    } else {
+      console.log('work please');
+      // no active plant assets
+      Cypress._.times(form.passes, (i) => {
+        it('Check the depth quantity--standard ' + i, () => {
+          expect(results['depthQuantity' + i].type).to.equal(
+            'quantity--standard'
+          );
+          expect(results['depthQuantity' + i].attributes.measure).to.equal(
+            'length'
+          );
+          expect(
+            results['depthQuantity' + i].attributes.value.decimal
+          ).to.equal(form.depth);
+          expect(results['depthQuantity' + i].attributes.label).to.equal(
+            'Depth'
+          );
+          expect(results['depthQuantity' + i].relationships.units.id).to.equal(
+            unitMap.get('INCHES').id
+          );
+          expect(results['depthQuantity' + i].relationships.inventory_asset).to
+            .be.null;
+          expect(results['depthQuantity' + i].attributes.inventory_adjustment)
+            .to.be.null;
+        });
+
+        it('Check the speed quantity--standard ' + i, () => {
+          expect(results['speedQuantity' + i].type).to.equal(
+            'quantity--standard'
+          );
+          expect(results['speedQuantity' + i].attributes.measure).to.equal(
+            'rate'
+          );
+          expect(
+            results['speedQuantity' + i].attributes.value.decimal
+          ).to.equal(form.speed);
+          expect(results['speedQuantity' + i].attributes.label).to.equal(
+            'Speed'
+          );
+          expect(results['speedQuantity' + i].relationships.units.id).to.equal(
+            unitMap.get('MPH').id
+          );
+          expect(results['speedQuantity' + i].relationships.inventory_asset).to
+            .be.null;
+          expect(results['speedQuantity' + i].attributes.inventory_adjustment)
+            .to.be.null;
+        });
+
+        it('Check the area quantity--standard ' + i, () => {
+          expect(results['areaQuantity' + i].type).to.equal(
+            'quantity--standard'
+          );
+          expect(results['areaQuantity' + i].attributes.measure).to.equal(
+            'ratio'
+          );
+          expect(results['areaQuantity' + i].attributes.value.decimal).to.equal(
+            form.area
+          );
+          expect(results['areaQuantity' + i].attributes.label).to.equal('Area');
+          expect(results['areaQuantity' + i].relationships.units.id).to.equal(
+            unitMap.get('PERCENT').id
+          );
+          expect(results['areaQuantity' + i].relationships.inventory_asset).to
+            .be.null;
+          expect(results['areaQuantity' + i].attributes.inventory_adjustment).to
+            .be.null;
+        });
+
+        it('Check the soil disturbance log--activity ' + i, () => {
+          expect(results['activityLog' + i].type).to.equal('log--activity');
+
+          // check attributes
+          expect(results['activityLog' + i].attributes.name).to.equal(
+            form.date + '_sd_' + form.location
+          );
+          expect(results['activityLog' + i].attributes.timestamp).to.contain(
+            form.date
+          );
+          expect(results['activityLog' + i].attributes.status).to.equal('done');
+          expect(results['activityLog' + i].attributes.is_movement).to.equal(
+            false
+          );
+          expect(results['activityLog' + i].attributes.notes.value).to.equal(
+            'Pass ' + (i + 1) + ' of ' + form.passes + '. ' + form.comment
+          );
+
+          // check locations
+          expect(
+            results['activityLog' + i].relationships.location.length
+          ).to.equal(3);
+          expect(
+            results['activityLog' + i].relationships.location[0].id
+          ).to.equal(fieldMap.get(form.location).id);
+          expect(
+            results['activityLog' + i].relationships.location[1].id
+          ).to.equal(bedMap.get(form.beds[0]).id);
+          expect(
+            results['activityLog' + i].relationships.location[2].id
+          ).to.equal(bedMap.get(form.beds[1]).id);
+
+          // check plant assets
+          expect(results['activityLog' + i].relationships.asset).to.have.length(
+            0
+          );
+
+          // check category
+          expect(
+            results['activityLog' + i].relationships.category.length
+          ).to.equal(1);
+          expect(
+            results['activityLog' + i].relationships.category[0].id
+          ).to.equal(categoryMap.get('tillage').id);
+
+          // check quantities
+          expect(
+            results['activityLog' + i].relationships.quantity.length
+          ).to.equal(3);
+          expect(
+            results['activityLog' + i].relationships.quantity[0].id
+          ).to.equal(results['depthQuantity' + i].id);
+          expect(
+            results['activityLog' + i].relationships.quantity[1].id
+          ).to.equal(results['speedQuantity' + i].id);
+          expect(
+            results['activityLog' + i].relationships.quantity[2].id
+          ).to.equal(results['areaQuantity' + i].id);
+
+          // check equipment
+          expect(
+            results['activityLog' + i].relationships.equipment.length
+          ).to.equal(form.equipment.length);
+          expect(
+            results['activityLog' + i].relationships.equipment[0].id
+          ).to.equal(equipmentMap.get(form.equipment[0]).id);
+          expect(
+            results['activityLog' + i].relationships.equipment[1].id
+          ).to.equal(equipmentMap.get(form.equipment[1]).id);
         });
       });
     }
-
-    // Cypress._.times(form.passes, (i) => {
-    //   it('Check the depth quantity--standard ' + i, () => {
-    //     expect(results['depthQuantity' + i].type).to.equal(
-    //       'quantity--standard'
-    //     );
-    //     expect(results['depthQuantity' + i].attributes.measure).to.equal(
-    //       'length'
-    //     );
-    //     expect(results['depthQuantity' + i].attributes.value.decimal).to.equal(
-    //       form.depth
-    //     );
-    //     expect(results['depthQuantity' + i].attributes.label).to.equal('Depth');
-    //     expect(results['depthQuantity' + i].relationships.units.id).to.equal(
-    //       unitMap.get('INCHES').id
-    //     );
-    //     expect(results['depthQuantity' + i].relationships.inventory_asset).to.be
-    //       .null;
-    //     expect(results['depthQuantity' + i].attributes.inventory_adjustment).to
-    //       .be.null;
-    //   });
-
-    //   it('Check the speed quantity--standard ' + i, () => {
-    //     expect(results['speedQuantity' + i].type).to.equal(
-    //       'quantity--standard'
-    //     );
-    //     expect(results['speedQuantity' + i].attributes.measure).to.equal(
-    //       'rate'
-    //     );
-    //     expect(results['speedQuantity' + i].attributes.value.decimal).to.equal(
-    //       form.speed
-    //     );
-    //     expect(results['speedQuantity' + i].attributes.label).to.equal('Speed');
-    //     expect(results['speedQuantity' + i].relationships.units.id).to.equal(
-    //       unitMap.get('MPH').id
-    //     );
-    //     expect(results['speedQuantity' + i].relationships.inventory_asset).to.be
-    //       .null;
-    //     expect(results['speedQuantity' + i].attributes.inventory_adjustment).to
-    //       .be.null;
-    //   });
-
-    //   it('Check the area quantity--standard ' + i, () => {
-    //     expect(results['areaQuantity' + i].type).to.equal('quantity--standard');
-    //     expect(results['areaQuantity' + i].attributes.measure).to.equal(
-    //       'ratio'
-    //     );
-    //     expect(results['areaQuantity' + i].attributes.value.decimal).to.equal(
-    //       form.area
-    //     );
-    //     expect(results['areaQuantity' + i].attributes.label).to.equal('Area');
-    //     expect(results['areaQuantity' + i].relationships.units.id).to.equal(
-    //       unitMap.get('PERCENT').id
-    //     );
-    //     expect(results['areaQuantity' + i].relationships.inventory_asset).to.be
-    //       .null;
-    //     expect(results['areaQuantity' + i].attributes.inventory_adjustment).to
-    //       .be.null;
-    //   });
-
-    //   it('Check the soil disturbance log--activity ' + i, () => {
-    //     expect(results['activityLog' + i].type).to.equal('log--activity');
-    //     expect(results['activityLog' + i].attributes.name).to.equal(
-    //       form.date + '_sd_' + form.location
-    //     );
-    //     expect(results['activityLog' + i].attributes.timestamp).to.contain(
-    //       form.date
-    //     );
-    //     expect(results['activityLog' + i].attributes.notes.value).to.equal(
-    //       'Pass ' + (i + 1) + ' of ' + form.passes + '. ' + form.comment
-    //     );
-
-    //     // check locations
-    //     expect(
-    //       results['activityLog' + i].relationships.location.length
-    //     ).to.equal(3);
-    //     expect(
-    //       results['activityLog' + i].relationships.location[0].id
-    //     ).to.equal(fieldMap.get(form.location).id);
-    //     expect(
-    //       results['activityLog' + i].relationships.location[1].id
-    //     ).to.equal(bedMap.get(form.beds[0]).id);
-    //     expect(
-    //       results['activityLog' + i].relationships.location[2].id
-    //     ).to.equal(bedMap.get(form.beds[1]).id);
-
-    //     // check plant assets
-    //     expect(results['activityLog' + i].relationships.asset).to.have.length(
-    //       form.affectedPlants.length
-    //     );
-    //     expect(results['activityLog' + i].relationships.asset[0].id).to.equal(
-    //       results.affectedPlants[0].id
-    //     );
-    //     expect(results['activityLog' + i].relationships.asset[1].id).to.equal(
-    //       results.affectedPlants[1].id
-    //     );
-
-    //     // check category
-    //     if (terminationValue) {
-    //       expect(
-    //         results['activityLog' + i].relationships.category.length
-    //       ).to.equal(2);
-    //       expect(
-    //         results['activityLog' + i].relationships.category[0].id
-    //       ).to.equal(categoryMap.get('tillage').id);
-    //       expect(
-    //         results['activityLog' + i].relationships.category[1].id
-    //       ).to.equal(categoryMap.get('termination').id);
-    //     } else {
-    //       expect(
-    //         results['activityLog' + i].relationships.category.length
-    //       ).to.equal(1);
-    //       expect(
-    //         results['activityLog' + i].relationships.category[0].id
-    //       ).to.equal(categoryMap.get('tillage').id);
-    //     }
-    //     // check quantities
-    //     expect(
-    //       results['activityLog' + i].relationships.quantity.length
-    //     ).to.equal(3);
-    //     expect(
-    //       results['activityLog' + i].relationships.quantity[0].id
-    //     ).to.equal(results['depthQuantity' + i].id);
-    //     expect(
-    //       results['activityLog' + i].relationships.quantity[1].id
-    //     ).to.equal(results['speedQuantity' + i].id);
-    //     expect(
-    //       results['activityLog' + i].relationships.quantity[2].id
-    //     ).to.equal(results['areaQuantity' + i].id);
-
-    //     // check equipment
-    //     expect(
-    //       results['activityLog' + i].relationships.equipment.length
-    //     ).to.equal(form.equipment.length);
-    //     expect(
-    //       results['activityLog' + i].relationships.equipment[0].id
-    //     ).to.equal(equipmentMap.get(form.equipment[0]).id);
-    //     expect(
-    //       results['activityLog' + i].relationships.equipment[1].id
-    //     ).to.equal(equipmentMap.get(form.equipment[1]).id);
-    //   });
-    // });
   });
 }
 
-runTest(true, true);
+// runTest(true, true); // has active plant asset and terminates bed
+//runTest(true, false); // has active plant asset but does not terminate
+runTest(false, false); // No active plant asset which implies there is nothing to terminate, so both false
+// runTest(false, True) // Not possible because you can't terminate without an active plant asset

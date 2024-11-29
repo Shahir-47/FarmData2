@@ -143,6 +143,12 @@ async function submitForm(formData) {
     } else {
       // if we have a active plant asset, then create a termination log (optional)
       // and a soil disturbance log (required) per plant asset
+
+      const equipmentMap = await farmosUtil.getEquipmentNameToAssetMap();
+      for (const equipmentName of formData.equipment) {
+        equipmentAssets.push(equipmentMap.get(equipmentName));
+      }
+
       for (let i = 0; i < plantAssets.length; i++) {
         const [uuid, { beds }] = plantAssets[i];
 
@@ -167,11 +173,6 @@ async function submitForm(formData) {
             },
           };
           ops.push(terminationLog);
-        }
-
-        const equipmentMap = await farmosUtil.getEquipmentNameToAssetMap();
-        for (const equipmentName of formData.equipment) {
-          equipmentAssets.push(equipmentMap.get(equipmentName));
         }
 
         for (let j = 0; j < formData.passes; j++) {
