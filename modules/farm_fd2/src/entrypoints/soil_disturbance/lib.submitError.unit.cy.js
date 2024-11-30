@@ -3,9 +3,22 @@ import * as farmosUtil from '@libs/farmosUtil/farmosUtil';
 
 function runTest(activePlantAsset) {
   describe(`Test the Soil Disturbance lib submission error with activePlantAsset=${activePlantAsset}`, () => {
-    let form;
     let plantAssets = [];
     let movementLogs = [];
+    let form = {
+      date: '1950-01-02',
+      location: 'ALF',
+      beds: [],
+      termination: true,
+      picked: new Map(),
+      affectedPlants: [],
+      equipment: ['Tractor', 'Rake'],
+      depth: 5,
+      speed: 6,
+      passes: 2,
+      area: 100,
+      comment: 'A comment',
+    };
 
     function createPlantAsset(name, type, date, alias) {
       return cy
@@ -62,47 +75,34 @@ function runTest(activePlantAsset) {
       );
     }
 
-    function cleanupLogsAndAssets() {
-      // Cleanup movement logs
-      movementLogs.forEach((movementLog) => {
-        cy.wrap(
-          farmosUtil
+    function cleanupLogsAndAssets(movementLogs, plantAssets) {
+      // Delete movement logs
+      cy.then(() => {
+        return Cypress.Promise.mapSeries(movementLogs, (log) => {
+          return farmosUtil
             .getFarmOSInstance()
-            .then((farm) => farm.log.delete('activity', movementLog.id))
-        ).then((result) => {
-          expect(result.status).to.equal(204); // Successful deletion
+            .then((farm) => farm.log.delete('activity', log.id))
+            .then((result) => {
+              expect(result.status).to.equal(204); // Successful deletion
+            });
         });
-      });
-      movementLogs = [];
-
-      // Cleanup plant assets
-      plantAssets.forEach((plantAsset) => {
-        cy.wrap(farmosUtil.deletePlantAsset(plantAsset.id)).then((result) => {
-          expect(result.status).to.equal(204); // Successful deletion
+      })
+        // Delete plant assets
+        .then(() => {
+          return Cypress.Promise.mapSeries(plantAssets, (asset) => {
+            return farmosUtil.deletePlantAsset(asset.id).then((result) => {
+              expect(result.status).to.equal(204); // Successful deletion
+            });
+          });
+        })
+        // Reset arrays after cleanup
+        .then(() => {
+          movementLogs.length = 0;
+          plantAssets.length = 0;
         });
-      });
-      plantAssets = [];
     }
 
-    beforeEach(() => {
-      cy.restoreLocalStorage();
-      cy.restoreSessionStorage();
-
-      form = {
-        date: '1950-01-02',
-        location: 'ALF',
-        beds: [],
-        termination: true,
-        picked: new Map(),
-        affectedPlants: [],
-        equipment: ['Tractor', 'Rake'],
-        depth: 5,
-        speed: 6,
-        passes: 2,
-        area: 100,
-        comment: 'A comment',
-      };
-
+    before(() => {
       if (activePlantAsset) {
         createPlantAsset(
           'Test Plant Asset 1',
@@ -153,10 +153,18 @@ function runTest(activePlantAsset) {
       }
     });
 
+    beforeEach(() => {
+      cy.restoreLocalStorage();
+      cy.restoreSessionStorage();
+    });
+
     afterEach(() => {
       cy.saveLocalStorage();
       cy.saveSessionStorage();
-      cleanupLogsAndAssets();
+    });
+
+    after(() => {
+      cleanupLogsAndAssets(movementLogs, plantAssets);
     });
 
     it(

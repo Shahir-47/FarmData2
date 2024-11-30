@@ -1,176 +1,28 @@
 import { lib } from './lib';
 import * as farmosUtil from '@libs/farmosUtil/farmosUtil';
 
-let plantAssets = [];
-let movementLogs = [];
-
-function createPlantAsset(name, type, date, alias) {
-  return cy
-    .wrap(farmosUtil.createPlantAsset(date, type, name))
-    .as(alias)
-    .then((plantAsset) => {
-      plantAssets.push(plantAsset); // storing for deletion later
-      return plantAsset;
-    });
-}
-
-function createMovementLog(
-  plantAsset,
-  locations,
-  categories,
-  timestamp,
-  alias
-) {
-  const locationsArrayPromise =
-    farmosUtil.getPlantingLocationObjects(locations);
-  const logCategoriesPromise = farmosUtil.getLogCategoryObjects(categories);
-
-  cy.wrap(Promise.all([locationsArrayPromise, logCategoriesPromise])).then(
-    ([locationsArray, logCategoriesArray]) => {
-      const logName = `${timestamp}_activity_log_${plantAsset.id}`;
-      const activityLogData = {
-        type: 'log--activity',
-        attributes: {
-          name: logName,
-          timestamp: `${timestamp}T00:00:00Z`,
-          status: 'done',
-          is_movement: true,
-        },
-        relationships: {
-          location: locationsArray,
-          asset: [{ type: 'asset--plant', id: plantAsset.id }],
-          category: logCategoriesArray,
-        },
-      };
-
-      const activityLog = farmosUtil
-        .getFarmOSInstance()
-        .then((farm) => farm.log.send(farm.log.create(activityLogData)));
-
-      cy.wrap(activityLog).as(alias);
-
-      cy.get(`@${alias}`).then((activityLog) => {
-        movementLogs.push(activityLog); // storing log for deletion later
-        expect(activityLog.attributes.name).to.contain('activity_log');
-        expect(activityLog.attributes.status).to.equal('done');
-        expect(activityLog.attributes.is_movement).to.be.true;
-      });
-    }
-  );
-}
-
-function cleanupLogsAndAssets() {
-  // Cleanup movement logs
-  movementLogs.forEach((movementLog) => {
-    cy.wrap(
-      farmosUtil
-        .getFarmOSInstance()
-        .then((farm) => farm.log.delete('activity', movementLog.id))
-    ).then((result) => {
-      expect(result.status).to.equal(204); // Successful deletion
-    });
-  });
-  movementLogs = [];
-
-  // Cleanup plant assets
-  plantAssets.forEach((plantAsset) => {
-    cy.wrap(farmosUtil.deletePlantAsset(plantAsset.id)).then((result) => {
-      expect(result.status).to.equal(204); // Successful deletion
-    });
-  });
-  plantAssets = [];
-}
-
-function cleanUp(results, activePlantAsset, terminationValue, passes) {
-  if (activePlantAsset) {
-    Cypress._.times(2, (i) => {
-      if (terminationValue) {
-        // delete terminationLogs
-        cy.wrap(
-          farmosUtil.deleteSoilDisturbanceTerminationLog(
-            results['terminationLog' + i].id
-          )
-        ).then((result) => {
-          expect(result.status).to.equal(204); // Successful deletion
-        });
-      }
-
-      Cypress._.times(passes, (j) => {
-        // delete depth quantity
-        cy.wrap(
-          farmosUtil.deleteStandardQuantity(
-            results['depthQuantity' + i + ' ' + j].id
-          )
-        ).then((result) => {
-          expect(result.status).to.equal(204); // Successful deletion
-        });
-
-        // delete area quantity
-        cy.wrap(
-          farmosUtil.deleteStandardQuantity(
-            results['speedQuantity' + i + ' ' + j].id
-          )
-        ).then((result) => {
-          expect(result.status).to.equal(204); // Successful deletion
-        });
-
-        // delete speed quantity
-        cy.wrap(
-          farmosUtil.deleteStandardQuantity(
-            results['areaQuantity' + i + ' ' + j].id
-          )
-        ).then((result) => {
-          expect(result.status).to.equal(204); // Successful deletion
-        });
-
-        // delete soil disturbance activity log
-        cy.wrap(
-          farmosUtil.deleteSoilDisturbanceActivityLog(
-            results['activityLog' + i + ' ' + j].id
-          )
-        ).then((result) => {
-          expect(result.status).to.equal(204); // Successful deletion
-        });
-      });
-    });
-    cleanupLogsAndAssets();
-  } else {
-    Cypress._.times(passes, (i) => {
-      // delete depth quantity
-      cy.wrap(
-        farmosUtil.deleteStandardQuantity(results['depthQuantity' + i].id)
-      ).then((result) => {
-        expect(result.status).to.equal(204); // Successful deletion
-      });
-
-      // delete area quantity
-      cy.wrap(
-        farmosUtil.deleteStandardQuantity(results['speedQuantity' + i].id)
-      ).then((result) => {
-        expect(result.status).to.equal(204); // Successful deletion
-      });
-
-      // delete speed quantity
-      cy.wrap(
-        farmosUtil.deleteStandardQuantity(results['areaQuantity' + i].id)
-      ).then((result) => {
-        expect(result.status).to.equal(204); // Successful deletion
-      });
-
-      // delete soil disturbance activity log
-      cy.wrap(
-        farmosUtil.deleteSoilDisturbanceActivityLog(
-          results['activityLog' + i].id
-        )
-      ).then((result) => {
-        expect(result.status).to.equal(204); // Successful deletion
-      });
-    });
-  }
-}
-
 function runTest(activePlantAsset, terminationValue) {
   describe(`Test the Soil Disturbance lib submission with activePlantAssets=${activePlantAsset} termination=${terminationValue}`, () => {
+    // Skip the test if the configuration is invalid
+    if (!activePlantAsset && terminationValue) {
+      // Can't terminate without an active plant asset involved
+      it('Should catch invalid configuration and mark as complete', () => {
+        cy.log(
+          'Invalid configuration caught: Termination cannot be true without an active plant asset. Marking this test as complete.'
+        );
+        expect(true).to.be.true; // Mark the test as passing
+      });
+      return; // Exit the describe block
+    }
+
+    let plantAssets = [];
+    let movementLogs = [];
+    let bedMap = null;
+    let categoryMap = null;
+    let equipmentMap = null;
+    let fieldMap = null;
+    let unitMap = null;
+    let results = null;
     let form = {
       date: '1950-01-02',
       location: 'ALF',
@@ -186,12 +38,182 @@ function runTest(activePlantAsset, terminationValue) {
       comment: 'A comment',
     };
 
-    let bedMap = null;
-    let categoryMap = null;
-    let equipmentMap = null;
-    let fieldMap = null;
-    let unitMap = null;
-    let results = null;
+    function createPlantAsset(name, type, date, alias) {
+      return cy
+        .wrap(farmosUtil.createPlantAsset(date, type, name))
+        .as(alias)
+        .then((plantAsset) => {
+          plantAssets.push(plantAsset); // storing asset for deletion later
+          return plantAsset;
+        });
+    }
+
+    function createMovementLog(
+      plantAsset,
+      locations,
+      categories,
+      timestamp,
+      alias
+    ) {
+      const locationsArrayPromise =
+        farmosUtil.getPlantingLocationObjects(locations);
+      const logCategoriesPromise = farmosUtil.getLogCategoryObjects(categories);
+
+      cy.wrap(Promise.all([locationsArrayPromise, logCategoriesPromise])).then(
+        ([locationsArray, logCategoriesArray]) => {
+          const logName = `${timestamp}_activity_log_${plantAsset.id}`;
+          const activityLogData = {
+            type: 'log--activity',
+            attributes: {
+              name: logName,
+              timestamp: `${timestamp}T00:00:00Z`,
+              status: 'done',
+              is_movement: true,
+            },
+            relationships: {
+              location: locationsArray,
+              asset: [{ type: 'asset--plant', id: plantAsset.id }],
+              category: logCategoriesArray,
+            },
+          };
+
+          const activityLog = farmosUtil
+            .getFarmOSInstance()
+            .then((farm) => farm.log.send(farm.log.create(activityLogData)));
+
+          cy.wrap(activityLog).as(alias);
+
+          cy.get(`@${alias}`).then((activityLog) => {
+            movementLogs.push(activityLog); // storing log for deletion later
+            expect(activityLog.attributes.name).to.contain('activity_log');
+            expect(activityLog.attributes.status).to.equal('done');
+            expect(activityLog.attributes.is_movement).to.be.true;
+          });
+        }
+      );
+    }
+
+    function cleanupLogsAndAssets(movementLogs, plantAssets) {
+      // Delete movement logs
+      cy.then(() => {
+        return Cypress.Promise.mapSeries(movementLogs, (log) => {
+          return farmosUtil
+            .getFarmOSInstance()
+            .then((farm) => farm.log.delete('activity', log.id))
+            .then((result) => {
+              expect(result.status).to.equal(204); // Successful deletion
+            });
+        });
+      })
+        // Delete plant assets
+        .then(() => {
+          return Cypress.Promise.mapSeries(plantAssets, (asset) => {
+            return farmosUtil.deletePlantAsset(asset.id).then((result) => {
+              expect(result.status).to.equal(204); // Successful deletion
+            });
+          });
+        })
+        // Reset arrays after cleanup
+        .then(() => {
+          movementLogs.length = 0;
+          plantAssets.length = 0;
+        });
+    }
+
+    function cleanUp(
+      results,
+      activePlantAsset,
+      terminationValue,
+      passes,
+      movementLogs,
+      plantAssets
+    ) {
+      if (activePlantAsset) {
+        Cypress._.times(2, (i) => {
+          if (terminationValue) {
+            // delete terminationLogs
+            cy.wrap(
+              farmosUtil.deleteSoilDisturbanceTerminationLog(
+                results['terminationLog' + i].id
+              )
+            ).then((result) => {
+              expect(result.status).to.equal(204); // Successful deletion
+            });
+          }
+
+          Cypress._.times(passes, (j) => {
+            // delete depth quantity
+            cy.wrap(
+              farmosUtil.deleteStandardQuantity(
+                results['depthQuantity' + i + ' ' + j].id
+              )
+            ).then((result) => {
+              expect(result.status).to.equal(204); // Successful deletion
+            });
+
+            // delete area quantity
+            cy.wrap(
+              farmosUtil.deleteStandardQuantity(
+                results['speedQuantity' + i + ' ' + j].id
+              )
+            ).then((result) => {
+              expect(result.status).to.equal(204); // Successful deletion
+            });
+
+            // delete speed quantity
+            cy.wrap(
+              farmosUtil.deleteStandardQuantity(
+                results['areaQuantity' + i + ' ' + j].id
+              )
+            ).then((result) => {
+              expect(result.status).to.equal(204); // Successful deletion
+            });
+
+            // delete soil disturbance activity log
+            cy.wrap(
+              farmosUtil.deleteSoilDisturbanceActivityLog(
+                results['activityLog' + i + ' ' + j].id
+              )
+            ).then((result) => {
+              expect(result.status).to.equal(204); // Successful deletion
+            });
+          });
+        });
+        cleanupLogsAndAssets(movementLogs, plantAssets);
+      } else {
+        Cypress._.times(passes, (i) => {
+          // delete depth quantity
+          cy.wrap(
+            farmosUtil.deleteStandardQuantity(results['depthQuantity' + i].id)
+          ).then((result) => {
+            expect(result.status).to.equal(204); // Successful deletion
+          });
+
+          // delete area quantity
+          cy.wrap(
+            farmosUtil.deleteStandardQuantity(results['speedQuantity' + i].id)
+          ).then((result) => {
+            expect(result.status).to.equal(204); // Successful deletion
+          });
+
+          // delete speed quantity
+          cy.wrap(
+            farmosUtil.deleteStandardQuantity(results['areaQuantity' + i].id)
+          ).then((result) => {
+            expect(result.status).to.equal(204); // Successful deletion
+          });
+
+          // delete soil disturbance activity log
+          cy.wrap(
+            farmosUtil.deleteSoilDisturbanceActivityLog(
+              results['activityLog' + i].id
+            )
+          ).then((result) => {
+            expect(result.status).to.equal(204); // Successful deletion
+          });
+        });
+      }
+    }
 
     before(() => {
       cy.wrap(farmosUtil.getBedNameToAssetMap()).then((map) => {
@@ -256,7 +278,7 @@ function runTest(activePlantAsset, terminationValue) {
                 },
                 picked: 1,
               };
-
+              form.affectedPlants.push(plantAsset);
               form.picked.set(0, value1);
               form.picked.set(1, value2);
             });
@@ -289,7 +311,7 @@ function runTest(activePlantAsset, terminationValue) {
                   },
                   picked: 1,
                 };
-
+                form.affectedPlants.push(plantAsset);
                 form.picked.set(2, value3);
               });
             });
@@ -324,9 +346,16 @@ function runTest(activePlantAsset, terminationValue) {
 
     after(() => {
       if (activePlantAsset) {
-        cleanUp(results, activePlantAsset, terminationValue, form.passes);
+        cleanUp(
+          results,
+          activePlantAsset,
+          terminationValue,
+          form.passes,
+          movementLogs,
+          plantAssets
+        );
       } else {
-        cleanUp(results, null, false, form.passes);
+        cleanUp(results, null, false, form.passes, movementLogs, plantAssets);
       }
     });
 
@@ -726,7 +755,7 @@ function runTest(activePlantAsset, terminationValue) {
   });
 }
 
-// runTest(true, true); // has active plant asset and terminates bed
-//runTest(true, false); // has active plant asset but does not terminate
+runTest(true, true); // has active plant asset and terminates beds
+runTest(true, false); // has active plant asset but does not terminate
 runTest(false, false); // No active plant asset which implies there is nothing to terminate, so both false
-// runTest(false, True) // Not possible because you can't terminate without an active plant asset
+runTest(false, true); // Should give a cy.log() statement and skip the `it` tests because you can't terminate without an active plant asset
