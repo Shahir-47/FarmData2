@@ -270,6 +270,75 @@ describe('Test the LocationSelector component events', () => {
       });
   });
 
+  it('"update:availableBeds" event is emitted on initialization with selected location', () => {
+    const readySpy = cy.spy().as('readySpy');
+    const availableBedsSpy = cy.spy().as('availableBedsSpy');
+
+    cy.mount(LocationSelector, {
+      props: {
+        includeGreenhouses: true,
+        selected: 'CHUAU',
+        onReady: readySpy,
+        'onUpdate:availableBeds': availableBedsSpy,
+      },
+    });
+
+    cy.get('@readySpy')
+      .should('have.been.calledOnce')
+      .then(() => {
+        // The component should emit the available beds when it's ready
+        cy.get('@availableBedsSpy').should('have.been.calledOnce');
+
+        // Verify that the emitted beds are correct for the selected location
+        cy.get('@availableBedsSpy')
+          .its('lastCall.args[0]')
+          .should('deep.equal', [
+            'CHUAU-1',
+            'CHUAU-2',
+            'CHUAU-3',
+            'CHUAU-4',
+            'CHUAU-5',
+          ]);
+      });
+  });
+
+  it('"update:availableBeds" event is emitted with the correct beds when location changes', () => {
+    const readySpy = cy.spy().as('readySpy');
+    const availableBedsSpy = cy.spy().as('availableBedsSpy');
+
+    cy.mount(LocationSelector, {
+      props: {
+        includeGreenhouses: true,
+        onReady: readySpy,
+        'onUpdate:availableBeds': availableBedsSpy,
+      },
+    });
+
+    cy.get('@readySpy')
+      .should('have.been.calledOnce')
+      .then(() => {
+        // Since no location is selected initially and beds are empty, the event is not emitted
+        cy.get('@availableBedsSpy').should('not.have.been.called');
+
+        // Select a location
+        cy.get('[data-cy="selector-input"]').select('CHUAU');
+
+        // The component should emit the available beds when the location changes
+        cy.get('@availableBedsSpy').should('have.been.calledOnce');
+
+        // Verify that the emitted beds are correct
+        cy.get('@availableBedsSpy')
+          .its('lastCall.args[0]')
+          .should('deep.equal', [
+            'CHUAU-1',
+            'CHUAU-2',
+            'CHUAU-3',
+            'CHUAU-4',
+            'CHUAU-5',
+          ]);
+      });
+  });
+
   it('Selected beds are cleared when location is changed', () => {
     const readySpy = cy.spy().as('readySpy');
     const updateSpy = cy.spy().as('updateSpy');

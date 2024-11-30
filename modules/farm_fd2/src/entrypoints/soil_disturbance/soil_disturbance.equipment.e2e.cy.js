@@ -81,6 +81,7 @@ describe('Soil Disturbance: Equipment Component', () => {
   });
 
   it('Updating beds updates area', () => {
+    // no location chosen
     cy.get('[data-cy="multi-equipment-selector"]')
       .find('[data-cy="selector-1"]')
       .find('[data-cy="selector-input"]')
@@ -89,6 +90,22 @@ describe('Soil Disturbance: Equipment Component', () => {
       .find('[data-cy="soil-disturbance-area"]')
       .find('[data-cy="numeric-input"]')
       .should('have.value', 100);
+
+    // location with no active plant assets
+    cy.get('[data-cy="soil-disturbance-location"]')
+      .find('[data-cy="selector-input"]')
+      .select('H');
+    cy.get('[data-cy="soil-disturbance-equipment-form"]')
+      .find('[data-cy="soil-disturbance-area"]')
+      .find('[data-cy="numeric-input"]')
+      .should('have.value', 100);
+    cy.get('[data-cy="picker-options"]').find('input').eq(0).click();
+    cy.get('[data-cy="soil-disturbance-equipment-form"]')
+      .find('[data-cy="soil-disturbance-area"]')
+      .find('[data-cy="numeric-input"]')
+      .should('have.value', 50);
+
+    // location with activePlant assets chosen
     cy.get('[data-cy="soil-disturbance-location"]')
       .find('[data-cy="selector-input"]')
       .select('ALF');
@@ -96,18 +113,11 @@ describe('Soil Disturbance: Equipment Component', () => {
       .find('[data-cy="soil-disturbance-area"]')
       .find('[data-cy="numeric-input"]')
       .should('have.value', 100);
-    cy.get('[data-cy="picker-options"]').find('input').eq(0).check();
-    cy.get('[data-cy="picker-options"]').find('input').eq(1).check();
+    cy.get('[data-cy="picklist-checkbox-0"]').check();
+    cy.get('[data-cy="picklist-checkbox-1"]').check();
     cy.get('[data-cy="soil-disturbance-equipment-form"]')
       .find('[data-cy="soil-disturbance-area"]')
       .find('[data-cy="numeric-input"]')
-      .should('have.value', 50);
-    cy.get('[data-cy="soil-disturbance-location"]')
-      .find('[data-cy="selector-input"]')
-      .select('A');
-    cy.get('[data-cy="soil-disturbance-equipment-form"]')
-      .find('[data-cy="soil-disturbance-area"]')
-      .find('[data-cy="numeric-input"]')
-      .should('have.value', 100);
+      .should('have.value', 67);
   });
 });

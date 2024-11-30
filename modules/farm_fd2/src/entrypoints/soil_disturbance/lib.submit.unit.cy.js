@@ -755,7 +755,7 @@ function runTest(activePlantAsset, terminationValue) {
   });
 }
 
-runTest(true, true); // has active plant asset and terminates beds
-runTest(true, false); // has active plant asset but does not terminate
 runTest(false, false); // No active plant asset which implies there is nothing to terminate, so both false
 runTest(false, true); // Should give a cy.log() statement and skip the `it` tests because you can't terminate without an active plant asset
+runTest(true, false); // has active plant asset but does not terminate
+runTest(true, true); // has active plant asset and terminates beds

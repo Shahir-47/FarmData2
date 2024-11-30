@@ -102,7 +102,14 @@ import { BAccordion } from 'bootstrap-vue-next';
 export default {
   name: 'LocationSelector',
   components: { SelectorBase, BedPicker, BAccordion },
-  emits: ['error', 'ready', 'update:selected', 'update:beds', 'valid'],
+  emits: [
+    'error',
+    'ready',
+    'update:selected',
+    'update:beds',
+    'update:allBeds',
+    'valid',
+  ],
   props: {
     /**
      * Whether to include all fields in the list of locations.
@@ -215,6 +222,7 @@ export default {
       fieldMap: new Map(),
       greenhouseMap: new Map(),
       bedObjs: [],
+      previousBeds: [],
       canCreateLand: false,
       canCreateStructure: false,
     };
@@ -406,8 +414,28 @@ export default {
         console.error('Error populating location maps:', error);
       }
     },
+    arraysEqual(a, b) {
+      if (a === b) return true;
+      if (a == null || b == null) return false;
+      if (a.length !== b.length) return false;
+
+      for (let i = 0; i < a.length; ++i) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    },
   },
   watch: {
+    beds(newBeds) {
+      if (newBeds.length > 0 && !this.arraysEqual(newBeds, this.previousBeds)) {
+        this.previousBeds = [...newBeds];
+        /**
+         * Emits a list of beds
+         */
+        console.log(newBeds);
+        this.$emit('update:availableBeds', newBeds);
+      }
+    },
     selectedBeds() {
       this.checkedBeds = this.selectedBeds;
     },

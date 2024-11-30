@@ -51,9 +51,10 @@
           includeGreenhousesWithBeds
           v-model:selected="form.location"
           v-bind:pickedBeds="form.beds"
-          v-bind:allowBedSelection="allowBedSelection"
+          v-bind:allowBedSelection="!plantsAtLocation"
           v-bind:showValidityStyling="validity.show"
           v-on:valid="validity.location = $event"
+          v-on:update:availableBeds="availableBeds = $event"
           v-on:update:beds="
             (checkedBeds, totalBeds) => handleBedsUpdate(checkedBeds, totalBeds)
           "
@@ -102,8 +103,10 @@
             v-bind:rows="form.affectedPlants"
             v-bind:showInfoIcons="false"
             v-bind:picked="form.picked"
-            v-on:valid="(valid) => (validity.picked = valid)"
-            v-on:update:picked="form.picked = $event"
+            v-on:valid="
+              (valid) => (validity.picked = !plantsAtLocation || valid)
+            "
+            v-on:update:picked="handlePickedUpdate($event)"
             v-on:ready="createdCount++"
           />
         </div>
@@ -228,6 +231,7 @@ export default {
       submitting: false,
       errorShowing: false,
       createdCount: 0,
+      availableBeds: [],
       picklistColumns: ['crop', 'bed', 'timestamp'],
       picklistLabels: {
         crop: 'Crop',
@@ -239,9 +243,6 @@ export default {
   computed: {
     plantsAtLocation() {
       return this.form.affectedPlants.length > 0;
-    },
-    allowBedSelection() {
-      return this.form.affectedPlants.length === 0;
     },
     pageDoneLoading() {
       return this.createdCount === 6;
@@ -310,6 +311,15 @@ export default {
               timestamp: 'Planted Date',
             };
           }
+
+          // Select All Beds if No Active Plantings
+          if (this.form.affectedPlants.length == 0) {
+            this.form.beds = this.availableBeds;
+            this.handleBedsUpdate(
+              this.availableBeds,
+              this.availableBeds.length
+            );
+          }
         } catch (error) {
           console.error('Error fetching plant assets:', error);
           this.form.affectedPlants = [];
@@ -325,17 +335,29 @@ export default {
     handleBedsUpdate(checkedBeds, totalBeds) {
       this.form.beds = checkedBeds;
       if (totalBeds > 0 && checkedBeds.length > 0) {
-        this.form.area = (checkedBeds.length / totalBeds) * 100;
+        this.form.area = Math.round((checkedBeds.length / totalBeds) * 100);
       } else {
         this.form.area = 100;
       }
-      this.checkPlantsAtLocation();
+    },
+    handlePickedUpdate(picked) {
+      this.form.picked = picked;
+
+      if (this.form.affectedPlants.length > 0 && this.form.picked.size > 0) {
+        this.form.area = Math.round(
+          (this.form.picked.size / this.form.affectedPlants.length) * 100
+        );
+      } else {
+        this.form.area = 100;
+      }
     },
     submit() {
       this.submitting = true;
       this.validity.show = true;
+      console.log('submit');
 
       if (this.validToSubmit) {
+        console.log('something');
         uiUtil.showToast(
           'Submitting Soil Disturbance...',
           '',
@@ -387,8 +409,6 @@ export default {
 
       if (!sticky) {
         this.form.date = dayjs().format('YYYY-MM-DD');
-        this.form.termination = false;
-        this.form.picked = new Map();
         this.form.equipment = [];
         this.form.depth = 0;
         this.form.speed = 0;
@@ -398,12 +418,17 @@ export default {
 
       this.form.location = null;
       this.form.beds = [];
+      this.form.termination = false;
+      this.form.picked = new Map();
+      this.form.affectedPlants = [];
       this.form.area = 100;
     },
   },
   watch: {},
   created() {
     this.createdCount++;
+
+    this.validity.picked = !this.plantsAtLocation;
 
     if (window.Cypress) {
       document.defaultView.lib = lib;
