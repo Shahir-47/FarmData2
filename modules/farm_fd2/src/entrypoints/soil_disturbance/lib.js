@@ -1,22 +1,39 @@
 import * as farmosUtil from '@libs/farmosUtil/farmosUtil';
 
 /**
- * Create the farmOS records (asset, quantities and log) to represent
+ * Create the farmOS records (quantities and logs) to represent
  * a soil disturbance
  *
- * @param {Object} form the form containing the data from the entry point.
- * @returns {Promise} a promise that resolves when the records are successfully created.
- * The returned value is an object containing the asset, quantities and log that
- * were sent to the server.  This object has the properties shown below
- * where i indicates passes:
- * ```Javascript
+ * @param {Object} form The form containing the data from the entry point.
+ * @returns {Promise} A promise that resolves when the records are successfully created.
+ * The returned value is an object containing the quantities and logs that
+ * were sent to the server. This object has the following properties based on whether
+ * an active plant assets are involved in the soil disturbance event:
+ *
+ * - **If no active plant assets are involved:** `i` represents the number of passes.
+ *
+ * ```javascript
  * {
  *   equipment: [ {asset--equipment} ],
- *   affectedPlants: [ {asset--plant} ],
  *   depth(i): {quantity--standard},
  *   speed(i): {quantity--standard},
  *   area(i): {quantity--standard},
  *   activityLog(i): {log--activity},
+ * }
+ * ```
+ *
+ * - **If active plant assets are involved:** `i` represents the number of the plant asset,
+ *   and `j` represents number of passes for the `i` plant asset.
+ *
+ * ```javascript
+ * {
+ *   equipment: [ {asset--equipment} ],
+ *   terminationLog(i): {log--activity}, // Present if the soil disturbance event is also a termination event.
+ *   affectedPlants: [ {asset--plant} ],
+ *   depth(i, j): {quantity--standard},
+ *   speed(i, j): {quantity--standard},
+ *   area(i, j): {quantity--standard},
+ *   activityLog(i, j): {log--activity},
  * }
  * ```
  * @throws {Error} if an error occurs while creating the farmOS records.
@@ -30,7 +47,6 @@ async function submitForm(formData) {
     let plantAssets = {};
     formData.picked.forEach((entry) => {
       const { uuid, bed } = entry.row;
-      console.log('UUID:', uuid, 'Bed:', bed);
 
       if (!plantAssets[uuid]) {
         plantAssets[uuid] = {
@@ -46,9 +62,6 @@ async function submitForm(formData) {
 
     // if no active plant assets exist
     if (plantAssets.length === 0) {
-      console.log('no plant');
-      console.log(formData);
-      console.log(plantAssets);
       const equipmentMap = await farmosUtil.getEquipmentNameToAssetMap();
       for (const equipmentName of formData.equipment) {
         equipmentAssets.push(equipmentMap.get(equipmentName));
@@ -152,10 +165,7 @@ async function submitForm(formData) {
       for (let i = 0; i < plantAssets.length; i++) {
         const [uuid, { beds }] = plantAssets[i];
 
-        console.log(uuid + ' ' + beds);
-
         if (formData.termination) {
-          console.log('terminating.....');
           const terminationLog = {
             name: 'terminationLog' + i,
             do: async () => {
@@ -206,7 +216,7 @@ async function submitForm(formData) {
             },
             undo: async (results) => {
               await farmosUtil.deleteStandardQuantity(
-                results['speedQuantity' + i + '' + j].id
+                results['speedQuantity' + i + ' ' + j].id
               );
             },
           };
@@ -270,8 +280,6 @@ async function submitForm(formData) {
 
     const result = await farmosUtil.runTransaction(ops);
     result['equipment'] = equipmentAssets;
-
-    console.log(result);
 
     return result;
   } catch (error) {

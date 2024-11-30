@@ -83,7 +83,6 @@ function cleanupLogsAndAssets() {
 
 function cleanUp(results, activePlantAsset, terminationValue, passes) {
   if (activePlantAsset) {
-    console.log(results);
     Cypress._.times(2, (i) => {
       if (terminationValue) {
         // delete terminationLogs
@@ -97,7 +96,6 @@ function cleanUp(results, activePlantAsset, terminationValue, passes) {
       }
 
       Cypress._.times(passes, (j) => {
-        console.log('depthQuantity' + i + ' ' + j);
         // delete depth quantity
         cy.wrap(
           farmosUtil.deleteStandardQuantity(
@@ -138,7 +136,6 @@ function cleanUp(results, activePlantAsset, terminationValue, passes) {
     cleanupLogsAndAssets();
   } else {
     Cypress._.times(passes, (i) => {
-      console.log('depthQuantity' + i);
       // delete depth quantity
       cy.wrap(
         farmosUtil.deleteStandardQuantity(results['depthQuantity' + i].id)
@@ -301,7 +298,6 @@ function runTest(activePlantAsset, terminationValue) {
             // Submit the form after all assets and movement logs are created
             cy.wrap(lib.submitForm(form), { timeout: 60000 }).then(
               (submitted) => {
-                console.log(submitted);
                 results = submitted;
               }
             );
@@ -311,7 +307,6 @@ function runTest(activePlantAsset, terminationValue) {
         form.beds.push('ALF-3');
 
         cy.wrap(lib.submitForm(form), { timeout: 60000 }).then((submitted) => {
-          console.log(submitted);
           results = submitted;
         });
       }
@@ -497,7 +492,6 @@ function runTest(activePlantAsset, terminationValue) {
 
             // check locations
             if (i === 0) {
-              console.log(form.picked.get(0).row.bed);
               expect(
                 results['activityLog' + i + ' ' + j].relationships.location
                   .length
@@ -591,7 +585,6 @@ function runTest(activePlantAsset, terminationValue) {
         });
       });
     } else {
-      console.log('work please');
       // no active plant assets
       Cypress._.times(form.passes, (i) => {
         it('Check the depth quantity--standard ' + i, () => {

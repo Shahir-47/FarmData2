@@ -2419,8 +2419,6 @@ export async function createSoilDisturbanceTerminationLog(
     (name) => bedNameToAssetMap.get(name)?.id
   );
 
-  console.log('called');
-
   // Determine beds to keep and beds to terminate
   const existingBeds = plantAsset.relationships.location.slice(1) || [];
   const bedsToKeep = existingBeds
