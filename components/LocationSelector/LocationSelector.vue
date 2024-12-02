@@ -432,7 +432,6 @@ export default {
         /**
          * Emits a list of beds
          */
-        console.log(newBeds);
         this.$emit('update:availableBeds', newBeds);
       }
     },

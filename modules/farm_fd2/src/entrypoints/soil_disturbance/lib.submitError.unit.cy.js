@@ -178,8 +178,6 @@ function runTest(activePlantAsset) {
           cy.intercept('POST', '**/api/log/activity', (req) => {
             postRequestCount += 1;
             if (postRequestCount === 3) {
-              console.log('stop:');
-              console.log(req);
               req.reply({
                 statusCode: 401,
               });
@@ -256,8 +254,6 @@ function runTest(activePlantAsset) {
           cy.intercept('POST', '**/api/log/activity', (req) => {
             postRequestCount += 1;
             if (postRequestCount === 2) {
-              console.log('stop:');
-              console.log(req);
               req.reply({
                 statusCode: 401,
               });

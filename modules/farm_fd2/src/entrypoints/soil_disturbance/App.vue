@@ -348,10 +348,8 @@ export default {
     submit() {
       this.submitting = true;
       this.validity.show = true;
-      console.log('submit');
 
       if (this.validToSubmit) {
-        console.log('something');
         uiUtil.showToast(
           'Submitting Soil Disturbance...',
           '',

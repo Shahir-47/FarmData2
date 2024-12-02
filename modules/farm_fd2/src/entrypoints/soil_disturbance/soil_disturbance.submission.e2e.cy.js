@@ -111,7 +111,6 @@ describe('Soil Disturbance: Submission tests', () => {
 
       if (activePlantAsset) {
         expect(formData.location).to.equal('ALF');
-        console.log(formData.picked);
         expect(formData.picked.get(0).row.crop).to.equal('PEPPERS-BELL');
         expect(formData.picked.get(0).row.bed).to.equal('ALF-1');
 
