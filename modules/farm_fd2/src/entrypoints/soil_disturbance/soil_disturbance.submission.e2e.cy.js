@@ -39,7 +39,19 @@ describe('Soil Disturbance: Submission tests', () => {
       cy.get('[data-cy="soil-disturbance-location"]')
         .find('[data-cy="selector-input"]')
         .select('ALF');
-      cy.get('[data-cy="termination-event-checkbox"]').check();
+
+      /* This checkbox should stay unchecked, or subsequent tests will fail.
+       * Failure happens because any test relying on the crops in the beds of ALF
+       * will encounter fewer crops than expected if this checkbox is left checked, as it terminates the crops.
+       */
+      cy.get('[data-cy="termination-event-checkbox"]')
+        .then(($checkbox) => {
+          if ($checkbox.is(':checked')) {
+            cy.wrap($checkbox).uncheck({ force: true });
+          }
+        })
+        .should('not.be.checked');
+
       cy.get('[data-cy="picklist-checkbox-0"]').check();
       cy.get('[data-cy="picklist-checkbox-1"]').check();
     }
@@ -109,7 +121,12 @@ describe('Soil Disturbance: Submission tests', () => {
         expect(formData.affectedPlants).to.have.length(3);
         checkPlantLocation(formData.affectedPlants);
 
-        expect(formData.termination).to.equal(true);
+        /* The termination flag should remain false in this test to avoid
+         * terminating crops. If termination is mistakenly set to true,
+         * subsequent tests may fail as the database will reflect fewer
+         * crops in the affected beds.
+         */
+        expect(formData.termination).to.equal(false);
 
         expect(formData.area).to.equal(67);
       } else {

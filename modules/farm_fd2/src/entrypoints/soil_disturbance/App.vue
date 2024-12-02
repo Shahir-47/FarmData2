@@ -311,15 +311,6 @@ export default {
               timestamp: 'Planted Date',
             };
           }
-
-          // Select All Beds if No Active Plantings
-          if (this.form.affectedPlants.length == 0) {
-            this.form.beds = this.availableBeds;
-            this.handleBedsUpdate(
-              this.availableBeds,
-              this.availableBeds.length
-            );
-          }
         } catch (error) {
           console.error('Error fetching plant assets:', error);
           this.form.affectedPlants = [];
@@ -328,9 +319,12 @@ export default {
         this.form.affectedPlants = [];
       }
     },
-    handleLocationUpdate(location) {
+    async handleLocationUpdate(location) {
       this.form.location = location;
-      this.checkPlantsAtLocation();
+      await this.checkPlantsAtLocation();
+      if (!this.plantsAtLocation) {
+        this.handleBedsUpdate(this.availableBeds, this.availableBeds.length);
+      }
     },
     handleBedsUpdate(checkedBeds, totalBeds) {
       this.form.beds = checkedBeds;
