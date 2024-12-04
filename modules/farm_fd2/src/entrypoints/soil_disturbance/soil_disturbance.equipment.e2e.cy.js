@@ -99,7 +99,11 @@ describe('Soil Disturbance: Equipment Component', () => {
       .find('[data-cy="soil-disturbance-area"]')
       .find('[data-cy="numeric-input"]')
       .should('have.value', 100);
-    cy.get('[data-cy="picker-options"]').find('input').eq(0).click();
+    cy.get('[data-cy="picker-options"]')
+      .find('input')
+      .eq(0)
+      .should('be.checked')
+      .uncheck();
     cy.get('[data-cy="soil-disturbance-equipment-form"]')
       .find('[data-cy="soil-disturbance-area"]')
       .find('[data-cy="numeric-input"]')
