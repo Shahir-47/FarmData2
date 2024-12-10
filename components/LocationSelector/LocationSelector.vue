@@ -102,15 +102,12 @@ import { BAccordion } from 'bootstrap-vue-next';
 export default {
   name: 'LocationSelector',
   components: { SelectorBase, BedPicker, BAccordion },
-  emits: [
-    'error',
-    'ready',
-    'update:selected',
-    'update:beds',
-    'update:allBeds',
-    'valid',
-  ],
+  emits: ['error', 'ready', 'update:selected', 'update:beds', 'valid'],
   props: {
+    selectAllBedsByDefault: {
+      type: Boolean,
+      default: false,
+    },
     /**
      * Whether to include all fields in the list of locations.
      */
@@ -222,7 +219,6 @@ export default {
       fieldMap: new Map(),
       greenhouseMap: new Map(),
       bedObjs: [],
-      previousBeds: [],
       canCreateLand: false,
       canCreateStructure: false,
     };
@@ -327,6 +323,7 @@ export default {
   },
   methods: {
     handleUpdateBeds(event) {
+      console.log(event);
       this.checkedBeds = event;
 
       /**
@@ -338,11 +335,6 @@ export default {
     },
     handleUpdateSelected(event) {
       this.selectedLocation = event;
-
-      // Clear any picked beds for the new location.
-      if (this.pickedBeds.length > 0) {
-        this.handleUpdateBeds([]);
-      }
 
       /**
        * The selected location has changed.
@@ -414,25 +406,15 @@ export default {
         console.error('Error populating location maps:', error);
       }
     },
-    arraysEqual(a, b) {
-      if (a === b) return true;
-      if (a == null || b == null) return false;
-      if (a.length !== b.length) return false;
-
-      for (let i = 0; i < a.length; ++i) {
-        if (a[i] !== b[i]) return false;
-      }
-      return true;
-    },
   },
   watch: {
-    beds(newBeds) {
-      if (newBeds.length > 0 && !this.arraysEqual(newBeds, this.previousBeds)) {
-        this.previousBeds = [...newBeds];
-        /**
-         * Emits a list of beds
-         */
-        this.$emit('update:availableBeds', newBeds);
+    selectedLocation(newLocation) {
+      if (newLocation && this.showBedSelection && this.selectAllBedsByDefault) {
+        this.$nextTick(() => {
+          if (this.beds.length > 0) {
+            this.checkedBeds = [...this.beds];
+          }
+        });
       }
     },
     selectedBeds() {
