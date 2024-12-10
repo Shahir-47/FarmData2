@@ -2390,12 +2390,6 @@ export async function getTraySeededCropNames() {
  * 1. Terminates specific beds associated with a plant asset at a given location.
  * 2. Archives the plant asset **if no beds remain after the termination process**.
  *
- * **Workflow:**
- * - Processes the list of beds to terminate, removing them from the plant asset.
- * - Calculates remaining beds for the plant asset.
- * - Creates a soil disturbance termination log to reflect the update.
- * - Archives the plant asset if all associated beds are terminated (i.e., no beds remain).
- *
  * @param {string} terminationDate - The date of the soil disturbance (e.g., "2023-11-20").
  * @param {string} locationName - The location of the plant asset (e.g., a field or greenhouse).
  * @param {Array<string>} bedNames - The names of the beds to terminate. If all beds are terminated, the plant asset is archived.

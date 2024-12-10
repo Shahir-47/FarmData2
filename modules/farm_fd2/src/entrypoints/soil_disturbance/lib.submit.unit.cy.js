@@ -7,12 +7,11 @@ function runTest(activePlantAsset, terminationValue) {
     if (!activePlantAsset && terminationValue) {
       // Can't terminate without an active plant asset involved
       it('Should catch invalid configuration and mark as complete', () => {
-        cy.log(
+        throw new Error(
           'Invalid configuration caught: Termination cannot be true without an active plant asset. Marking this test as complete.'
         );
-        expect(true).to.be.true; // Mark the test as passing
       });
-      return; // Exit the describe block
+      return;
     }
 
     let plantAssets = [];
@@ -756,6 +755,5 @@ function runTest(activePlantAsset, terminationValue) {
 }
 
 runTest(false, false); // No active plant asset which implies there is nothing to terminate, so both false
-runTest(false, true); // Should give a cy.log() statement and skip the `it` tests because you can't terminate without an active plant asset
 runTest(true, false); // has active plant asset but does not terminate
 runTest(true, true); // has active plant asset and terminates beds
