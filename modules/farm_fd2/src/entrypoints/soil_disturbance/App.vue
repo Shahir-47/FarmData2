@@ -52,9 +52,9 @@
           v-model:selected="form.location"
           v-bind:pickedBeds="form.beds"
           v-bind:allowBedSelection="!plantsAtLocation"
+          v-bind:selectAllBedsByDefault="!plantsAtLocation"
           v-bind:showValidityStyling="validity.show"
           v-on:valid="validity.location = $event"
-          v-on:update:availableBeds="availableBeds = $event"
           v-on:update:beds="
             (checkedBeds, totalBeds) => handleBedsUpdate(checkedBeds, totalBeds)
           "
@@ -231,7 +231,6 @@ export default {
       submitting: false,
       errorShowing: false,
       createdCount: 0,
-      availableBeds: [],
       picklistColumns: ['crop', 'bed', 'timestamp'],
       picklistLabels: {
         crop: 'Crop',
@@ -265,7 +264,7 @@ export default {
         try {
           let results = await farmosUtil.getPlantAssets(
             this.form.location,
-            this.form.beds,
+            [],
             false,
             true
           );
@@ -321,10 +320,7 @@ export default {
     },
     async handleLocationUpdate(location) {
       this.form.location = location;
-      await this.checkPlantsAtLocation();
-      if (!this.plantsAtLocation) {
-        this.handleBedsUpdate(this.availableBeds, this.availableBeds.length);
-      }
+      this.checkPlantsAtLocation();
     },
     handleBedsUpdate(checkedBeds, totalBeds) {
       this.form.beds = checkedBeds;

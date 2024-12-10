@@ -11,6 +11,7 @@
     data-cy="location-bed-picker"
     v-bind:location="location"
     v-model:picked="form.beds"
+    v-bind:selectAllBedsByDefault="selectAllBedsByDefault"
     v-bind:required="required"
     v-bind:showValidityStyling="validity.showStyling"
     v-on:valid="
@@ -37,6 +38,17 @@
             data-cy="required-checkbox"
             switch
             v-model="required"
+          />
+        </td>
+      </tr>
+      <tr>
+        <td>selectAllBedsByDefault</td>
+        <td>
+          <BFormCheckbox
+            id="selectAllBedsByDefault-checkbox"
+            data-cy="selectAllBedsByDefault-checkbox"
+            switch
+            v-model="selectAllBedsByDefault"
           />
         </td>
       </tr>
@@ -166,6 +178,7 @@ export default {
     return {
       required: true,
       location: 'ALF',
+      selectAllBedsByDefault: true,
       form: {
         beds: [],
       },

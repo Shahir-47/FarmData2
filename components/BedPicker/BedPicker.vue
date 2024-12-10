@@ -8,6 +8,7 @@
       label="Beds"
       v-bind:options="bedList"
       v-bind:picked="picked"
+      v-bind:selectAll="selectAll"
       v-bind:required="required"
       v-bind:showValidityStyling="showValidityStyling"
       v-on:update:picked="handleUpdatePicked($event)"
@@ -73,6 +74,13 @@ export default {
       default: () => [],
     },
     /**
+     * Whether to select all beds within a location by default.
+     */
+    selectAllBedsByDefault: {
+      type: Boolean,
+      default: false,
+    },
+    /**
      * Whether at least one bed must be picked or not.
      */
     required: {
@@ -92,6 +100,7 @@ export default {
       fieldMap: null,
       greenhouseMap: null,
       beds: null,
+      selectAll: false,
       bedList: [],
     };
   },
@@ -142,6 +151,15 @@ export default {
     location() {
       if (this.fieldMap && this.greenhouseMap && this.beds) {
         this.updateBedList();
+        if (this.selectAllBedsByDefault && this.bedList.length > 0) {
+          this.selectAll = true;
+
+          // Reset `selectAll` to false to ensure it triggers again
+          // when a new location is selected in the future.
+          this.$nextTick(() => {
+            this.selectAll = false;
+          });
+        }
       }
     },
   },
@@ -157,6 +175,13 @@ export default {
         this.beds = beds;
 
         this.updateBedList();
+
+        if (this.selectAllBedsByDefault && this.bedList.length > 0) {
+          this.selectAll = true;
+          this.$nextTick(() => {
+            this.selectAll = false;
+          });
+        }
 
         /**
          * The component is ready for use.

@@ -41,6 +41,7 @@
           data-cy="location-bed-picker"
           v-bind:location="selectedLocation"
           v-bind:picked="checkedBeds"
+          v-bind:selectAllBedsByDefault="selectAllBedsByDefault"
           v-bind:required="requireBedSelection"
           v-on:update:picked="handleUpdateBeds($event)"
           v-bind:showValidityStyling="showValidityStyling"
@@ -410,15 +411,6 @@ export default {
     },
   },
   watch: {
-    selectedLocation(newLocation) {
-      if (newLocation && this.showBedSelection && this.selectAllBedsByDefault) {
-        this.$nextTick(() => {
-          if (this.beds.length > 0) {
-            this.checkedBeds = [...this.beds];
-          }
-        });
-      }
-    },
     selectedBeds() {
       this.checkedBeds = this.selectedBeds;
     },
