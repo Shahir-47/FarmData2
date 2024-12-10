@@ -104,10 +104,6 @@ export default {
   components: { SelectorBase, BedPicker, BAccordion },
   emits: ['error', 'ready', 'update:selected', 'update:beds', 'valid'],
   props: {
-    selectAllBedsByDefault: {
-      type: Boolean,
-      default: false,
-    },
     /**
      * Whether to include all fields in the list of locations.
      */
@@ -161,6 +157,13 @@ export default {
      * Whether a location selection is required or not.
      */
     required: {
+      type: Boolean,
+      default: false,
+    },
+    /**
+     * Whether to select all beds within a location by default.
+     */
+    selectAllBedsByDefault: {
       type: Boolean,
       default: false,
     },
@@ -323,7 +326,6 @@ export default {
   },
   methods: {
     handleUpdateBeds(event) {
-      console.log(event);
       this.checkedBeds = event;
 
       /**
