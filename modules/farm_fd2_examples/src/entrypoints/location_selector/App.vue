@@ -18,6 +18,7 @@
     v-bind:includeGreenhousesWithBeds="includeGreenhousesWithBeds"
     v-bind:allowBedSelection="allowBedSelection"
     v-bind:requireBedSelection="requireBedSelection"
+    v-bind:selectAllBedsByDefault="selectAllBedsByDefault"
     v-model:selected="this.form.selected"
     v-model:pickedBeds="this.form.pickedBeds"
     v-on:update:beds="(beds) => (this.form.pickedBeds = beds)"
@@ -123,6 +124,17 @@
             data-cy="requireBedSelection-checkbox"
             switch
             v-model="requireBedSelection"
+          />
+        </td>
+      </tr>
+      <tr>
+        <td>selectAllBedsByDefault</td>
+        <td>
+          <BFormCheckbox
+            id="selectAllBedsByDefault-checkbox"
+            data-cy="selectAllBedsByDefault-checkbox"
+            switch
+            v-model="selectAllBedsByDefault"
           />
         </td>
       </tr>
@@ -258,6 +270,7 @@ export default {
       includeGreenhousesWithBeds: true,
       allowBedSelection: true,
       requireBedSelection: false,
+      selectAllBedsByDefault: true,
       form: {
         selected: null,
         pickedBeds: [],
