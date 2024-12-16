@@ -13,7 +13,6 @@
     invalid-feedback-text="Selection cannot be empty."
     v-bind:required="required"
     v-bind:showValidityStyling="validity.showStyling"
-    v-bind:selectAllBedsByDefault="selectAllBedsByDefault"
     v-bind:includeFields="includeFields"
     v-bind:includeGreenhouses="includeGreenhouses"
     v-bind:includeGreenhousesWithBeds="includeGreenhousesWithBeds"
@@ -35,17 +34,6 @@
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td>selectAllBedsByDefault</td>
-        <td>
-          <BFormCheckbox
-            id="selectAllBedsByDefault-checkbox"
-            data-cy="selectAllBedsByDefault-checkbox"
-            switch
-            v-model="selectAllBedsByDefault"
-          />
-        </td>
-      </tr>
       <tr>
         <td>required</td>
         <td>
@@ -265,7 +253,6 @@ export default {
   data() {
     return {
       required: true,
-      selectAllBedsByDefault: true,
       includeFields: true,
       includeGreenhouses: true,
       includeGreenhousesWithBeds: true,

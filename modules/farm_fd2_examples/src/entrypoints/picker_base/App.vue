@@ -14,7 +14,6 @@
     v-bind:required="required"
     v-bind:showValidityStyling="validity.showStyling"
     v-bind:showAllButton="showAllButton"
-    v-bind:selectAll="selectAll"
     v-bind:options="options"
     v-model:picked="form.picked"
     v-on:valid="(valid) => (validity.picked = valid)"
@@ -60,17 +59,6 @@
             data-cy="show-all-button-checkbox"
             switch
             v-model="showAllButton"
-          />
-        </td>
-      </tr>
-      <tr>
-        <td>selectAll</td>
-        <td>
-          <BFormCheckbox
-            id="select-all-checkbox"
-            data-cy="select-all-checkbox"
-            switch
-            v-model="selectAll"
           />
         </td>
       </tr>
@@ -159,7 +147,6 @@ export default {
     return {
       required: true,
       showAllButton: true,
-      selectAll: true,
       options: ['one', 'two', 'three', 'four', 'five'],
       form: {
         picked: ['one', 'two', 'three'],

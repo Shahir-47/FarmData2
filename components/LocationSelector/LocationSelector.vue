@@ -41,7 +41,6 @@
           data-cy="location-bed-picker"
           v-bind:location="selectedLocation"
           v-bind:picked="checkedBeds"
-          v-bind:selectAllBedsByDefault="selectAllBedsByDefault"
           v-bind:required="requireBedSelection"
           v-on:update:picked="handleUpdateBeds($event)"
           v-bind:showValidityStyling="showValidityStyling"
@@ -158,13 +157,6 @@ export default {
      * Whether a location selection is required or not.
      */
     required: {
-      type: Boolean,
-      default: false,
-    },
-    /**
-     * Whether to select all beds within a location by default.
-     */
-    selectAllBedsByDefault: {
       type: Boolean,
       default: false,
     },
@@ -338,6 +330,11 @@ export default {
     },
     handleUpdateSelected(event) {
       this.selectedLocation = event;
+
+      // Clear any picked beds for the new location.
+      if (this.pickedBeds.length > 0) {
+        this.handleUpdateBeds([]);
+      }
 
       /**
        * The selected location has changed.

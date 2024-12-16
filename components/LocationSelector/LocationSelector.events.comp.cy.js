@@ -289,9 +289,15 @@ describe('Test the LocationSelector component events', () => {
       .then(() => {
         cy.get('[data-cy="selector-input"]').select('GHANA');
 
-        cy.get('@updateSpy').should('have.been.calledTwice');
-        cy.get('@updateSpy').its('args[1][0]').should('deep.equal', []);
-        cy.get('@updateSpy').its('args[1][1]').should('equal', 4);
+        cy.get('@updateSpy').should('have.been.calledThrice');
+        cy.get('@updateSpy').its('args[2][0]').should('deep.equal', []);
+        cy.get('@updateSpy').its('args[2][1]').should('equal', 4);
+
+        cy.get('[data-cy="selector-input"]').select('CHUAU');
+
+        cy.get('@updateSpy').its('callCount').should('equal', 4);
+        cy.get('@updateSpy').its('args[3][0]').should('deep.equal', []);
+        cy.get('@updateSpy').its('args[3][1]').should('equal', 5);
       });
   });
 

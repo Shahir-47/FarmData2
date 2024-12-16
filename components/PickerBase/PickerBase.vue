@@ -145,13 +145,6 @@ export default {
       default: () => [],
     },
     /**
-     * Whether to select all items
-     */
-    selectAll: {
-      type: Boolean,
-      default: false,
-    },
-    /**
      * Whether it is required that at least one item be picked or not.
      */
     required: {
@@ -224,14 +217,6 @@ export default {
     },
     picked() {
       this.checked = this.picked;
-    },
-    selectAll: {
-      immediate: true,
-      handler(newVal) {
-        if (newVal && this.checked.length !== this.options.length) {
-          this.pickAll();
-        }
-      },
     },
     options: {
       handler() {
