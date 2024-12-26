@@ -270,7 +270,7 @@ export default {
       includeGreenhousesWithBeds: true,
       allowBedSelection: true,
       requireBedSelection: false,
-      selectAllBedsByDefault: true,
+      selectAllBedsByDefault: false,
       form: {
         selected: null,
         pickedBeds: [],
