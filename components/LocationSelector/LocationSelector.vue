@@ -405,19 +405,14 @@ export default {
     },
   },
   watch: {
-    selectedBeds() {
-      this.checkedBeds = this.selectedBeds;
-    },
     checkedBeds: {
       handler() {
-        if (this.selectedLocation && this.showBedSelection) {
-          /**
-           * The selected beds have changed.
-           * @property {Array<string>} checkedBeds an array containing the names of the selected beds.
-           * @property {number} totalBeds the total number of beds in the selected location.
-           */
-          this.$emit('update:beds', this.checkedBeds, this.beds.length);
-        }
+        /**
+         * The selected beds have changed.
+         * @property {Array<string>} checkedBeds an array containing the names of the selected beds.
+         * @property {number} totalBeds the total number of beds in the selected location.
+         */
+        this.$emit('update:beds', this.checkedBeds, this.beds.length);
       },
       deep: true,
     },
