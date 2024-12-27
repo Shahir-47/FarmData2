@@ -142,6 +142,16 @@
         <td>selected</td>
         <td>
           <BButton
+            id="clear-selected-field-button"
+            data-cy="clear-selected-field-button"
+            variant="outline-primary"
+            size="sm"
+            v-on:click="this.form.selected = ''"
+            v-bind:disabled="!includeFields || this.form.selected == ''"
+          >
+            None
+          </BButton>
+          <BButton
             id="select-field-button"
             data-cy="select-field-button"
             variant="outline-primary"
