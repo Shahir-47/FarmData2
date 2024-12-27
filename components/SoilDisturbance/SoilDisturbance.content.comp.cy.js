@@ -47,7 +47,7 @@ describe('Test the default SoilDisturbance content', () => {
     cy.get('@readySpy')
       .should('have.been.calledOnce')
       .then(() => {
-        cy.get('[data-cy="equipment-selector-1"]')
+        cy.get('[data-cy="selector-1"]')
           .find('[data-cy="selector-required"]')
           .should('exist');
       });
@@ -67,10 +67,10 @@ describe('Test the default SoilDisturbance content', () => {
     cy.get('@readySpy')
       .should('have.been.calledOnce')
       .then(() => {
-        cy.get('[data-cy="equipment-selector-1"]')
+        cy.get('[data-cy="selector-1"]')
           .find('[data-cy="selector-input"]')
           .should('have.class', 'is-invalid');
-        cy.get('[data-cy="equipment-selector-1"]')
+        cy.get('[data-cy="selector-1"]')
           .find('[data-cy="selector-invalid-feedback"]')
           .should('be.visible');
       });
@@ -89,13 +89,13 @@ describe('Test the default SoilDisturbance content', () => {
     cy.get('@readySpy')
       .should('have.been.calledOnce')
       .then(() => {
-        cy.get('[data-cy="equipment-selector-1"]')
+        cy.get('[data-cy="selector-1"]')
           .find('[data-cy="selector-input"]')
           .should('have.value', 'Tractor');
-        cy.get('[data-cy="equipment-selector-2"]')
+        cy.get('[data-cy="selector-2"]')
           .find('[data-cy="selector-input"]')
           .should('have.value', 'Planter');
-        cy.get('[data-cy="equipment-selector-3"]')
+        cy.get('[data-cy="selector-3"]')
           .find('[data-cy="selector-input"]')
           .should('have.value', null);
       });
@@ -278,10 +278,7 @@ describe('Test the default SoilDisturbance content', () => {
       .then(() => {
         cy.get('[data-cy="soil-disturbance-depth"]')
           .find('[data-cy="numeric-decrease-sm"]')
-          .click();
-        cy.get('[data-cy="soil-disturbance-depth"]')
-          .find('[data-cy="numeric-input"]')
-          .should('have.value', '0.0');
+          .should('be.disabled');
       });
   });
 
@@ -350,10 +347,7 @@ describe('Test the default SoilDisturbance content', () => {
       .then(() => {
         cy.get('[data-cy="soil-disturbance-speed"]')
           .find('[data-cy="numeric-decrease-sm"]')
-          .click();
-        cy.get('[data-cy="soil-disturbance-speed"]')
-          .find('[data-cy="numeric-input"]')
-          .should('have.value', '0.0');
+          .should('be.disabled');
       });
   });
 
@@ -427,10 +421,7 @@ describe('Test the default SoilDisturbance content', () => {
       .then(() => {
         cy.get('[data-cy="soil-disturbance-area"]')
           .find('[data-cy="numeric-increase-sm"]')
-          .click();
-        cy.get('[data-cy="soil-disturbance-area"]')
-          .find('[data-cy="numeric-input"]')
-          .should('have.value', '100');
+          .should('be.disabled');
 
         cy.get('[data-cy="soil-disturbance-area"]')
           .find('[data-cy="numeric-input"]')
@@ -441,10 +432,7 @@ describe('Test the default SoilDisturbance content', () => {
 
         cy.get('[data-cy="soil-disturbance-area"]')
           .find('[data-cy="numeric-decrease-sm"]')
-          .click();
-        cy.get('[data-cy="soil-disturbance-area"]')
-          .find('[data-cy="numeric-input"]')
-          .should('have.value', '1');
+          .should('be.disabled');
       });
   });
 
@@ -507,10 +495,7 @@ describe('Test the default SoilDisturbance content', () => {
       .then(() => {
         cy.get('[data-cy="soil-disturbance-passes"]')
           .find('[data-cy="numeric-decrease-sm"]')
-          .click();
-        cy.get('[data-cy="soil-disturbance-passes"]')
-          .find('[data-cy="numeric-input"]')
-          .should('have.value', '1');
+          .should('be.disabled');
       });
   });
 });

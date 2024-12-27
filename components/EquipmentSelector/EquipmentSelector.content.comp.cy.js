@@ -11,23 +11,6 @@ describe('Test the default EquipmentSelector content', () => {
     cy.saveSessionStorage();
   });
 
-  it('Check the first dropdown element', () => {
-    const readySpy = cy.spy().as('readySpy');
-
-    cy.mount(EquipmentSelector, {
-      props: {
-        onReady: readySpy,
-      },
-    });
-
-    cy.get('@readySpy')
-      .should('have.been.calledOnce')
-      .then(() => {
-        cy.get('[data-cy="equipment-selector-1"]').should('exist');
-        cy.get('[data-cy="equipment-selector-2"]').should('not.exist');
-      });
-  });
-
   it('Check default props', () => {
     const readySpy = cy.spy().as('readySpy');
 
@@ -41,10 +24,7 @@ describe('Test the default EquipmentSelector content', () => {
       .should('have.been.calledOnce')
       .then(() => {
         cy.get('[data-cy="selector-required"]').should('not.exist');
-        cy.get('[data-cy="selector-label"]').should('have.text', '1:');
         cy.get('[data-cy="selector-input"]').should('have.value', null);
-        cy.get('[data-cy="selector-delete-button"]').should('not.exist');
-        cy.get('[data-cy="selector-add-button"]').should('exist');
         cy.get('[data-cy="selector-input"]').should(
           'not.have.class',
           'is-valid'
@@ -70,30 +50,14 @@ describe('Test the default EquipmentSelector content', () => {
     cy.get('@readySpy')
       .should('have.been.calledOnce')
       .then(() => {
-        cy.get('[data-cy="equipment-selector-1"]').should('exist');
-        cy.get('[data-cy="equipment-selector-1"]')
-          .find('[data-cy="selector-delete-button"]')
-          .should('not.exist');
-        cy.get('[data-cy="equipment-selector-1"]')
-          .find('[data-cy="selector-add-button"]')
-          .should('not.exist');
-
-        cy.get('[data-cy="equipment-selector-2"]').should('exist');
-        cy.get('[data-cy="equipment-selector-2"]')
-          .find('[data-cy="selector-delete-button"]')
-          .should('not.exist');
-        cy.get('[data-cy="equipment-selector-2"]')
-          .find('[data-cy="selector-add-button"]')
-          .should('exist');
-
-        cy.get('[data-cy="equipment-selector-1"]')
+        cy.get('[data-cy="selector-1"]')
           .find('[data-cy="selector-required"]')
           .should('exist');
-        cy.get('[data-cy="equipment-selector-2"]')
+        cy.get('[data-cy="selector-2"]')
           .find('[data-cy="selector-required"]')
           .should('not.exist');
 
-        cy.get('[data-cy="equipment-selector-1"]')
+        cy.get('[data-cy="selector-1"]')
           .find('[data-cy="selector-input"]')
           .should('have.value', 'Tractor');
       });
@@ -131,11 +95,27 @@ describe('Test the default EquipmentSelector content', () => {
       .then(() => {
         cy.get('[data-cy="selector-input"]')
           .find('option')
-          .should('have.length', 9);
+          .should('have.length', 14);
 
-        cy.get('[data-cy="equipment-selector-1"]')
+        cy.get('[data-cy="selector-1"]')
           .find('[data-cy="selector-option-1"]')
-          .should('have.value', 'Planter');
+          .should('have.value', 'Bed Shaper');
       });
+  });
+
+  it('Equipment plus button exists, is visible, is enabled', () => {
+    const readySpy = cy.spy().as('readySpy');
+
+    cy.mount(EquipmentSelector, {
+      props: {
+        onReady: readySpy,
+      },
+    });
+
+    cy.get('[data-cy="selector-1"]')
+      .find('[data-cy="selector-add-button"]')
+      .should('exist')
+      .should('be.visible')
+      .should('be.enabled');
   });
 });

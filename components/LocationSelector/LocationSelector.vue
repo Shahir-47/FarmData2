@@ -11,8 +11,8 @@
       v-bind:showValidityStyling="showValidityStyling"
       v-on:update:selected="handleUpdateSelected($event)"
       v-on:valid="handleLocationValid($event)"
-      v-bind:includeAddButton="canCreateLocation"
       v-on:add-clicked="handleAddClicked"
+      v-bind:popupUrl="popupUrl"
     />
 
     <BAccordion
@@ -40,9 +40,8 @@
           id="location-bed-picker"
           data-cy="location-bed-picker"
           v-bind:location="selectedLocation"
-          v-bind:picked="checkedBeds"
+          v-model:picked="checkedBeds"
           v-bind:required="requireBedSelection"
-          v-on:update:picked="handleUpdateBeds($event)"
           v-bind:showValidityStyling="showValidityStyling"
           v-on:valid="handleBedsValid($event)"
         />
@@ -60,10 +59,33 @@ import { BAccordion } from 'bootstrap-vue-next';
 /**
  * The LocationSelector component provides a UI element that allows the user to select a location.
  *
+ * ## Live Example
+ *
+ * <a href="http://farmos/fd2_examples/location_selector">The LocationSelector Example</a>
+ *
+ * Source: <a href="../../modules/farm_fd2_examples/src/entrypoints/location_selector/App.vue">App.vue</a>
+ *
  * ## Usage Example
  *
  * ```html
- * TODO: Update this example to include props for BedPicker.
+ * <LocationSelector
+ *   id="location-selector"
+ *   data-cy="location-selector"
+ *   label="Location"
+ *   invalid-feedback-text="Selection cannot be empty."
+ *   v-bind:required="required"
+ *   v-bind:showValidityStyling="validity.showStyling"
+ *   v-bind:includeFields="includeFields"
+ *   v-bind:includeGreenhouses="includeGreenhouses"
+ *   v-bind:includeGreenhousesWithBeds="includeGreenhousesWithBeds"
+ *   v-bind:allowBedSelection="allowBedSelection"
+ *   v-bind:requireBedSelection="requireBedSelection"
+ *   v-model:selected="this.form.selected"
+ *   v-model:pickedBeds="this.form.pickedBeds"
+ *   v-on:update:beds="(beds) => (this.form.pickedBeds = beds)"
+ *   v-on:valid="(valid) => (validity.selected = valid)"
+ *   v-on:ready="createdCount++"
+ * />
  * ```
  *
  * ## `data-cy` Attributes
@@ -90,15 +112,25 @@ export default {
     },
     /**
      * Whether to include all greenhouses in the list of locations.
+     * If set to `true`, all greenhouses will be added to the location options,
+     * regardless of whether they contain beds or not.
      */
     includeGreenhouses: {
       type: Boolean,
       default: false,
     },
     /**
-     * Whether to include only greenhouses with beds in the list of locations.
-     * If `includeGreenhouses` is also true, then all greenhouses will be included
-     * even if this property is true.
+     * Whether to include only greenhouses that contain beds in the list of locations.
+     * Note: If `includeGreenhouses` is also set to `true`, all greenhouses will be
+     * included, overriding this setting.
+     *
+     * For example:
+     * - If `includeGreenhouses` is `true` and `includeGreenhousesWithBeds` is `false`,
+     *   all greenhouses, (both with and without beds), will be included.
+     * - If both `includeGreenhouses` and `includeGreenhousesWithBeds` are `true`,
+     *   all greenhouses (both with and without beds) will be included.
+     * - If `includeGreenhouses` is `false` and `includeGreenhousesWithBeds` is `true`,
+     *   only greenhouses with beds will be included.
      */
     includeGreenhousesWithBeds: {
       type: Boolean,
@@ -117,6 +149,13 @@ export default {
      * is false, this property is ignored.
      */
     requireBedSelection: {
+      type: Boolean,
+      default: false,
+    },
+    /**
+     * Whether to select all beds within a location by default.
+     */
+    selectAllBedsByDefault: {
       type: Boolean,
       default: false,
     },
@@ -187,6 +226,19 @@ export default {
     };
   },
   computed: {
+    popupUrl() {
+      if (
+        (this.includeGreenhouses || this.includeGreenhousesWithBeds) &&
+        !this.includeFields &&
+        this.canCreateStructure
+      ) {
+        return '/asset/add/structure';
+      } else if (this.includeFields && this.canCreateLand) {
+        return '/asset/add/land';
+      } else {
+        return null;
+      }
+    },
     canCreateLocation() {
       return (
         (this.includeFields && this.canCreateLand) ||
@@ -272,22 +324,13 @@ export default {
     },
   },
   methods: {
-    handleUpdateBeds(event) {
-      this.checkedBeds = event;
-
-      /**
-       * The selected beds have changed.
-       * @property {Array<string>} checkedBeds an array containing the names of the selected beds.
-       * @property {number} totalBeds the total number of beds in the selected location.
-       */
-      this.$emit('update:beds', this.checkedBeds, this.beds.length);
-    },
     handleUpdateSelected(event) {
       this.selectedLocation = event;
 
-      // Clear any picked beds for the new location.
-      if (this.pickedBeds.length > 0) {
-        this.handleUpdateBeds([]);
+      if (this.selectAllBedsByDefault) {
+        this.checkedBeds = this.beds;
+      } else {
+        this.checkedBeds = [];
       }
 
       /**
@@ -302,35 +345,76 @@ export default {
     handleBedsValid(event) {
       this.bedsValid = event;
     },
-    handleAddClicked() {
-      if (
-        this.includeFields &&
-        (this.includeGreenhouses || this.includeGreenhousesWithBeds) &&
-        this.canCreateLand &&
-        this.canCreateStructure
-      ) {
-        farmosUtil.clearCachedFields();
-        farmosUtil.clearCachedGreenhouses();
-        farmosUtil.clearCachedBeds();
-        window.location.href = '/asset/add';
-      } else if (this.includeFields && this.canCreateLand) {
-        farmosUtil.clearCachedFields();
-        farmosUtil.clearCachedBeds();
-        window.location.href = '/asset/add/land';
-      } else if (
-        (this.includeGreenhouses || this.includeGreenhousesWithBeds) &&
-        this.canCreateStructure
-      ) {
-        farmosUtil.clearCachedGreenhouses();
-        window.location.href = '/asset/add/structure';
-      } else {
-        return null;
+    async handleAddClicked(newLocation) {
+      // when the selector emits the add-clicked event
+      // clear the cached locations and repopulate the options
+      // to get the newly created location, then select it
+
+      // If a new asset is provided, update the selected
+      if (newLocation) {
+        // Clear the cached
+        if (
+          this.includeFields &&
+          (this.includeGreenhouses || this.includeGreenhousesWithBeds) &&
+          this.canCreateLand &&
+          this.canCreateStructure
+        ) {
+          farmosUtil.clearCachedFields();
+          farmosUtil.clearCachedGreenhouses();
+          farmosUtil.clearCachedBeds();
+        } else if (this.includeFields && this.canCreateLand) {
+          farmosUtil.clearCachedFields();
+          farmosUtil.clearCachedBeds();
+        } else if (
+          (this.includeGreenhouses || this.includeGreenhousesWithBeds) &&
+          this.canCreateStructure
+        ) {
+          farmosUtil.clearCachedGreenhouses();
+        }
+
+        // Populate the map and wait for it to complete
+        await this.populateLocationList();
+
+        this.handleUpdateSelected(newLocation);
+      }
+    },
+    async populateLocationList() {
+      try {
+        let fieldMap = null;
+        if (this.includeFields) {
+          fieldMap = await farmosUtil.getFieldIdToAssetMap();
+        }
+
+        let greenhouseMap = null;
+        if (this.includeGreenhouses || this.includeGreenhousesWithBeds) {
+          greenhouseMap = await farmosUtil.getGreenhouseIdToAssetMap();
+        }
+
+        let beds = null;
+        if (this.allowBedSelection) {
+          beds = await farmosUtil.getBeds();
+        }
+
+        // Update asset list
+        this.fieldMap = fieldMap;
+        this.greenhouseMap = greenhouseMap;
+        this.bedObjs = beds;
+      } catch (error) {
+        console.error('Error populating location maps:', error);
       }
     },
   },
   watch: {
-    selectedBeds() {
-      this.checkedBeds = this.selectedBeds;
+    checkedBeds: {
+      handler() {
+        /**
+         * The selected beds have changed.
+         * @property {Array<string>} checkedBeds an array containing the names of the selected beds.
+         * @property {number} totalBeds the total number of beds in the selected location.
+         */
+        this.$emit('update:beds', this.checkedBeds, this.beds.length);
+      },
+      deep: true,
     },
     pickedBeds() {
       this.checkedBeds = this.pickedBeds;

@@ -1,28 +1,23 @@
 <template>
   <div>
-    <SelectorBase
-      v-for="(selectedEquipment, i) in ['', ...selectedEquipment]"
-      v-bind:key="i"
-      v-bind:id="'equipment-selector-' + (i + 1)"
-      v-bind:data-cy="'equipment-selector-' + (i + 1)"
-      invalidFeedbackText="Equipment must be selected"
-      v-bind:label="String(i + 1)"
-      v-bind:includeAddButton="
-        i == this.selectedEquipment.length && this.canCreateEquipment
-      "
-      v-bind:options="equipmentList"
-      v-bind:required="isRequired(i)"
-      v-bind:selected="selected[i]"
+    <MultiSelectorBase
+      id="multi-equipment-selector"
+      data-cy="multi-equipment-selector"
+      invalidFeedbackText="One equipment must be selected"
+      v-bind:required="required"
       v-bind:showValidityStyling="showValidityStyling"
-      v-on:update:selected="handleUpdateSelected($event, i)"
-      v-on:valid="handleValid($event, i)"
-      v-on:add-clicked="handleAddClicked"
+      v-bind:options="equipmentList"
+      v-bind:selected="selected"
+      v-on:update:selected="handleUpdateSelected()"
+      v-on:add-clicked="handleAddClicked($event)"
+      v-on:valid="handleValid($event)"
+      v-bind:popupUrl="popupUrl"
     />
   </div>
 </template>
 
 <script>
-import SelectorBase from '@comps/SelectorBase/SelectorBase.vue';
+import MultiSelectorBase from '@comps/MultiSelectorBase/MultiSelectorBase.vue';
 import * as farmosUtil from '@libs/farmosUtil/farmosUtil.js';
 
 /**
@@ -33,15 +28,27 @@ import * as farmosUtil from '@libs/farmosUtil/farmosUtil.js';
  * is selected another dropdown appears to allow the user to select
  * another piece of equipment.
  *
+ * ## Live Example
+ *
+ * <a href="http://farmos/fd2_examples/equipment_selector">The EquipmentSelector Example</a>
+ *
+ * Source: <a href="../../modules/farm_fd2_examples/src/entrypoints/equipment_selector/App.vue">App.vue</a>
+ *
  * ## Usage Example
  *
  * ```html
  * <EquipmentSelector
- *   id="seeding-equipment"
- *   data-cy="seeding-equipment"
- *   v-model:selected="form.equipment"
- *   v-bind:showValidityStyling="validity.show"
- *   v-on:valid="validity.equipment = $event"
+ *   id="equipment-selector"
+ *   data-cy="equipment-selector"
+ *   invalid-feedback-text="Selection cannot be empty."
+ *   v-bind:required="required"
+ *   v-bind:showValidityStyling="validity.showStyling"
+ *   v-bind:selected="form.selected"
+ *   v-on:valid="
+ *     (valid) => {
+ *       validity.selected = valid;
+ *     }
+ *   "
  *   v-on:ready="createdCount++"
  *   v-on:error="(msg) => showErrorToast('Network Error', msg)"
  * />
@@ -49,13 +56,13 @@ import * as farmosUtil from '@libs/farmosUtil/farmosUtil.js';
  *
  * ## `data-cy` Attributes
  *
- * Attribute Name         | Description
- * -----------------------| -----------
- * `equipment-selector-i` | The ith `SelectorBase` component (labeled `i:` for i=[1...n]).
+ * Attribute Name             | Description
+ * ---------------------------| -----------
+ * `equipment-multi-selector` | The  `MultiSelectorBase` component.
  */
 export default {
   name: 'EquipmentSelector',
-  components: { SelectorBase },
+  components: { MultiSelectorBase },
   emits: ['error', 'ready', 'update:selected', 'valid'],
   props: {
     /**
@@ -87,9 +94,10 @@ export default {
   data() {
     return {
       selectedEquipment: this.selected,
-      valid: [null],
+      valid: null,
       equipmentList: [],
       canCreateEquipment: false,
+      popupUrl: null,
     };
   },
   computed: {
@@ -98,34 +106,46 @@ export default {
        * The whole list will be valid if the first
        * SelectorBase has a valid value.
        */
-      return this.valid[0];
+      return this.valid;
     },
   },
   methods: {
-    handleAddClicked() {
-      farmosUtil.clearCachedEquipment();
-      window.location.href = '/asset/add/equipment';
-    },
-    isRequired(i) {
-      return this.required && (i == 0 || i < this.selectedEquipment.length - 1);
-    },
-    handleUpdateSelected(event, i) {
-      if (event === '') {
-        // The ith piece of equipment was removed.
-        this.selectedEquipment.splice(i, 1);
-        this.valid.splice(i, 1);
-      } else {
-        this.selectedEquipment[i] = event;
-      }
+    async handleAddClicked(newEquipment) {
+      // when the selector emits the add-clicked event
+      // clear the cached equipment and repopulate the options
+      // to get the newly created equipment, then select it
 
+      // If a new asset is provided, update the selected
+      if (newEquipment) {
+        // Clear the cached
+        farmosUtil.clearCachedEquipment();
+
+        // Populate the map and wait for it to complete
+        await this.populateEquipmentList();
+
+        this.selectedEquipment.push(newEquipment);
+        this.handleUpdateSelected();
+      }
+    },
+    async populateEquipmentList() {
+      try {
+        let equipmentMap = await farmosUtil.getEquipmentNameToAssetMap();
+
+        // Update asset list
+        this.equipmentList = Array.from(equipmentMap.keys());
+      } catch (error) {
+        console.error('Error populating equipment map:', error);
+      }
+    },
+    handleUpdateSelected() {
       /**
        * The selected equipment has changed.
        * @property {Array<String>} event the names of the newly selected equipment.
        */
       this.$emit('update:selected', this.selectedEquipment);
     },
-    handleValid(event, i) {
-      this.valid[i] = event;
+    handleValid(event) {
+      this.valid = event;
     },
   },
   watch: {
@@ -152,6 +172,9 @@ export default {
         this.canCreateEquipment = canCreate;
         this.equipmentList = Array.from(equipmentMap.keys());
 
+        if (this.canCreateEquipment) {
+          this.popupUrl = '/asset/add/equipment';
+        }
         //Emit the initial valid state of the component's value.
         //this.$emit('valid', this.isValid);
 
